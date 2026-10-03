@@ -1,0 +1,96 @@
+name: Build (Android APK / iOS)
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 테스트 + 브라우저 QA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 단위 테스트
+        run: npm test
+      - name: 브라우저 자동 플레이 QA
+        run: |
+          npx playwright install --with-deps chromium
+          CHROMIUM="$(node -e "console.log(require('playwright').chromium.executablePath())")" npm run qa
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-screenshots
+          path: qa-output/
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npx cap sync android
+      - name: Gradle 빌드 (debug APK)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: APK 이름 정리
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk cooking-simulator-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cooking-simulator-android-apk
+          path: cooking-simulator-debug.apk
+
+  ios:
+    name: iOS 빌드
+    runs-on: macos-26
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - run: npm ci
+      - run: npx cap sync ios
+      - name: 시뮬레이터용 빌드 (.app)
+        working-directory: ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -derivedDataPath build/sim \
+            CODE_SIGNING_ALLOWED=NO build
+          cd build/sim/Build/Products/Debug-iphonesimulator && zip -qry "$GITHUB_WORKSPACE/cooking-simulator-simulator.zip" App.app
+      - name: 실기기용 빌드 (서명 안 된 .ipa)
+        working-directory: ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build/device \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir -p Payload && cp -R build/device/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/cooking-simulator-unsigned.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cooking-simulator-ios
+          path: |
+            cooking-simulator-simulator.zip
+            cooking-simulator-unsigned.ipa

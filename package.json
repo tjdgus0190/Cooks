@@ -1,0 +1,25 @@
+{
+  "name": "cooking-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "쿠킹 시뮬레이터 - 스테이크 요리 모바일 게임",
+  "type": "module",
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "qa": "node tools/qa-playthrough.mjs",
+    "sync": "npx cap sync",
+    "android:build": "npx cap sync android && cd android && ./gradlew assembleDebug",
+    "ios:build": "npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "playwright": "^1.63.0"
+  }
+}

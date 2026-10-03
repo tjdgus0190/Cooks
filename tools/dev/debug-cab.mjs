@@ -1,0 +1,17 @@
+import { chromium } from 'playwright';
+import { startServer } from '../serve.mjs';
+const srv = await startServer(8399);
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+page.on('console', m => console.log('console:', m.type(), m.text()));
+page.on('pageerror', e => console.log('pageerror', e));
+await page.goto('http://localhost:8399/');
+await page.waitForTimeout(500);
+await page.evaluate(() => { window.__game.newRun('minjun'); window.__game.goStage(1); });
+console.log('stage set');
+await page.waitForTimeout(500);
+const r = await Promise.race([page.evaluate(() => 1 + 1), new Promise(r => setTimeout(() => r('HUNG'), 3000))]);
+console.log('ping', r);
+await page.screenshot({ path: '/tmp/claude-0/shots/cab.png' });
+console.log('shot ok');
+await browser.close(); srv.close();

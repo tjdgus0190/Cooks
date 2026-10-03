@@ -1,0 +1,16 @@
+import { chromium } from 'playwright';
+import { startServer } from '../serve.mjs';
+const srv = await startServer(8123);
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+const errs = [];
+page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+page.on('pageerror', e => errs.push(String(e)));
+await page.goto('http://localhost:8123/');
+await page.waitForTimeout(1200);
+await page.screenshot({ path: '/tmp/claude-0/shots/title.png' });
+await page.evaluate(() => document.getElementById('overlay').classList.remove('show'));
+await page.screenshot({ path: '/tmp/claude-0/shots/title-bg.png' });
+await page.screenshot({ path: '/tmp/claude-0/shots/title-zoom.png', clip: { x: 60, y: 110, width: 270, height: 200 } });
+console.log('errors', errs);
+await browser.close(); srv.close();

@@ -1,0 +1,14 @@
+{
+  "appId": "com.cooks.cookingsimulator",
+  "appName": "쿠킹 시뮬레이터",
+  "webDir": "www",
+  "backgroundColor": "#1a0f0a",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true
+  },
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false
+  }
+}
