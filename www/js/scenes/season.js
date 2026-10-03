@@ -1,6 +1,7 @@
 // 3단계: 시즈닝 — 휴대폰을 흔들어 소금·후추, 흔들거나 휘휘 돌려 올리브오일
 import { drawCounter, drawBoard, drawShaker } from '../art.js';
-import { drawSteakTop, drawSteakShadow, insideSteak, SHAPE } from '../meat.js';
+import { drawSteakTop, drawSteakShadow, insideSteak, SHAPE, drawGrains } from '../meat.js';
+import { seasonTarget } from '../subjects.js';
 import { sfx, haptic } from '../audio.js';
 import { onMotion, motion, feedShake } from '../motion.js';
 import { clamp, TAU, polyBounds, pointInPoly } from '../geom.js';
@@ -32,13 +33,18 @@ export class SeasonScene {
     this.noMotionTime = 0;
     const trim = game.state.trim || {};
     this.mems = trim.mems; this.scars = trim.scars;
+    const step = game.state.stepCfg || {};
+    this.kind = step.subject || 'steak';
+    this.TOOLS = TOOLS.filter((t) => (step.tools || ['salt', 'pepper', 'oil']).includes(t.key));
+    this.alt = seasonTarget(this.kind);       // 새우/랍스터
+    this.saltScale = { shrimp: 0.5, lobster: 0.8 }[this.kind] || 1;
   }
 
   enter() {
     const { ui } = this.game;
     this.game.instruct({
       icon: '🧂',
-      title: '3. 시즈닝',
+      title: this.game.state.stepCfg?.name || '시즈닝',
       lines: [
         '휴대폰을 <b>흔들면</b> 소금·후추가 뿌려져요. <b>세게·빠르게</b> 흔들수록 많이 나와요!',
         '올리브오일은 흔들거나 휴대폰을 <b>휘휘 돌려서</b> 뿌려요.',
@@ -46,11 +52,11 @@ export class SeasonScene {
         '센서가 없으면 화면을 빠르게 좌우로 문질러도 돼요.',
       ],
     }).then(() => { this.active = true; });
-    this.seg = ui.addSegment(TOOLS.map((t) => ({ key: t.key, label: t.label })), this.tool, (k) => this.setTool(k));
+    this.seg = ui.addSegment(this.TOOLS.map((t) => ({ key: t.key, label: t.label })), this.tool, (k) => this.setTool(k));
     ui.addButton('시즈닝 완료 ✓', () => this.finish());
     const hints = this.game.state.customer.hints;
     this.meters = {};
-    for (const t of TOOLS) {
+    for (const t of this.TOOLS) {
       const tgt = SEASON_TARGET[t.key] * (t.key === 'salt' ? this.saltTarget() / SEASON_TARGET.salt : 1);
       const zone = hints ? [(tgt * 0.8) / (tgt * 2), (tgt * 1.2) / (tgt * 2)] : null;
       this.meters[t.key] = { m: ui.addMeter(t.label, { zone }), max: tgt * 2 };
@@ -61,11 +67,18 @@ export class SeasonScene {
 
   exit() { this.off?.(); }
 
-  saltTarget() { const st = this.game.state; return SEASON_TARGET.salt * st.customer.saltPref * (st.dish?.saltMul || 1); }
+  saltTarget() { const st = this.game.state; return SEASON_TARGET.salt * st.customer.saltPref * (st.dish?.saltMul || 1) * (this.saltScale || 1); }
+
+  unitCoverage() {
+    // 새우 5마리 각각에 소금이 고루 닿았는지
+    const pos = [[-70, -40], [5, -45], [78, -38], [-40, 40], [45, 42]];
+    const hit = pos.filter(([x, y]) => this.grains.filter((g) => g.type === 'salt' && Math.hypot(g.x - x, g.y - y) < 32).length >= 3).length;
+    return hit / pos.length;
+  }
 
   setTool(k) {
     this.tool = k; this.seg?.select(k); sfx.pop();
-    for (const t of TOOLS) this.meters[t.key].m.show(t.key === k);
+    for (const t of this.TOOLS) this.meters[t.key].m.show(t.key === k);
     this.game.ui.setHint(k === 'oil' ? '휴대폰을 흔들거나 휘휘 돌려서 오일을 둘러요' : '휴대폰을 흔들어서 뿌려요! 세게 흔들수록 많이');
   }
 
@@ -109,7 +122,7 @@ export class SeasonScene {
   }
 
   land(p) {
-    const on = insideSteak(p.tx, p.ty);
+    const on = this.alt ? this.alt.inside(p.tx, p.ty) : insideSteak(p.tx, p.ty);
     if (p.type === 'oil') {
       if (on) { this.amount.oil += DROP_ML; if (this.oilDrops.length < 160) this.oilDrops.push({ x: p.tx, y: p.ty, r: 5 + Math.random() * 9, a: Math.random() * 3 }); }
       else if (this.boardGrains.length < 900) this.boardGrains.push({ type: 'oil', x: p.tx, y: p.ty, r: 4 + Math.random() * 6 });
@@ -142,6 +155,8 @@ export class SeasonScene {
   }
 
   coverage() {
+    if (this.kind === 'shrimp') return this.unitCoverage();
+    if (this.kind === 'lobster') return Math.min(1, this.grains.filter((g) => g.type === 'salt').length / 60);
     // 고기 표면을 격자로 나눠 양념이 닿은 칸의 비율
     const b = polyBounds(SHAPE);
     const nx = 8, ny = 5;
@@ -166,7 +181,7 @@ export class SeasonScene {
     this.done = true;
     this.off?.();
     const s = this.amount;
-    this.game.state.season = { salt: s.salt, pepper: s.pepper, oil: s.oil, coverage: this.coverage(), grains: this.grains, oilDrops: this.oilDrops };
+    this.game.state.season = { salt: s.salt, pepper: s.pepper, oil: s.oil, coverage: this.coverage(), grains: this.grains, oilDrops: this.oilDrops, tools: this.TOOLS.map((t) => t.key), saltScale: this.saltScale };
     const tgt = this.saltTarget();
     const r = s.salt / tgt;
     this.game.ui.toast(r < 0.5 ? '간이 너무 약해요…' : r > 1.7 ? '소금 폭탄!' : '좋은 간이에요', { bad: r < 0.5 || r > 1.7 });
@@ -179,7 +194,7 @@ export class SeasonScene {
     const landed = this.falling.filter((p) => p.t >= p.dur);
     for (const p of landed) this.land(p);
     if (landed.length) this.falling = this.falling.filter((p) => p.t < p.dur);
-    for (const t of TOOLS) {
+    for (const t of this.TOOLS) {
       const v = this.amount[t.key], M = this.meters[t.key];
       M.m.set(v / M.max, `${v.toFixed(1)}${t.unit}`);
     }
@@ -205,8 +220,11 @@ export class SeasonScene {
         g.fillRect(b.x, b.y, b.s, b.s);
       }
     }
-    drawSteakShadow(g, tex, 4, 10, 0.7);
-    drawSteakTop(g, tex, { brown: 0, mems: this.mems, scars: this.scars, grains: this.grains, oilDrops: this.oilDrops, oil: this.amount.oil, sideThick: 8 });
+    if (this.alt) { this.alt.draw(g, {}); drawGrains(g, this.grains, 0); }
+    else {
+      drawSteakShadow(g, tex, 4, 10, 0.7);
+      drawSteakTop(g, tex, { brown: 0, mems: this.mems, scars: this.scars, grains: this.grains, oilDrops: this.oilDrops, oil: this.amount.oil, sideThick: 8 });
+    }
     // 떨어지는 알갱이
     for (const p of this.falling) {
       const u = p.t / p.dur;

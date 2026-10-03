@@ -1,5 +1,6 @@
 // 공용 그래픽: 배경, 도마, 팬, 접시, 칼, 양념통, 가니쉬, 손님
 import { TAU, rng, clamp, lerp } from './geom.js';
+import { drawBaguette, drawLemonWedge, drawParsleyPinch } from './food.js';
 
 const cache = new Map();
 function cached(key, w, h, dpr, painter) {
@@ -330,7 +331,7 @@ export const GARNISHES = [
 ];
 
 /** 가니쉬 크기(반경, mm 단위) — 겹침 판정/선택에 사용 */
-export const GARNISH_R = { slaw: 32, tomato: 11, asparagus: 30, rosemary: 30, garlic: 10, mushroom: 13, butter: 11, micro: 14, flake: 9 };
+export const GARNISH_R = { slaw: 32, tomato: 11, asparagus: 30, rosemary: 30, garlic: 10, mushroom: 13, butter: 11, micro: 14, flake: 9, baguette: 18, lemon: 16, parsley: 11 };
 
 const CONTACT = { tomato: [12, 11], asparagus: [30, 5], garlic: [9, 8], mushroom: [13, 11], butter: [11, 9] };
 
@@ -487,6 +488,9 @@ export function drawGarnish(g, key, opts = {}) {
       drawSlaw(g, opts.amount ?? 1, opts.seed || 5);
       break;
     }
+    case 'baguette': drawBaguette(g); break;
+    case 'lemon': drawLemonWedge(g); break;
+    case 'parsley': drawParsleyPinch(g, opts.seed || 2); break;
   }
 }
 

@@ -58,20 +58,38 @@ async function flick(peak) {
 const G = (expr) => page.evaluate(expr);
 
 await page.goto(`http://localhost:${port}/`);
-await sleep(800);
-await shot('title');
-// 새 가게로 시작 (저장 초기화)
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 await sleep(800);
-await clickText('가게 열기');
-await sleep(500);
-await shot('shop');
-await clickText('영업 시작');
-await sleep(300);
-await shot('order');
-await clickText('주문 받기');
+await shot('splash');
+await page.waitForFunction(() => window.__game.scene?.constructor.name === 'TitleScene', null, { timeout: 8000 });
 await sleep(400);
+await shot('title');
+await page.locator('#start-btn').click({ force: true });
+await sleep(500);
+await shot('prologue');
+await clickText('건너뛰기'); await sleep(400);
+await shot('help');
+await clickText('건너뛰기'); await sleep(600);
+await shot('shop');
+// 준비대: 마늘을 실제로 썰어 인벤토리 만들기
+await clickText('준비대'); await sleep(300);
+await page.locator('[data-act=p_garlic]').click(); await sleep(400);
+await clickText('손질 시작'); await sleep(300);
+for (let i = 0; i < 26; i++) { const x = 92 + i * 8.4; await drag(line(x, 370, x + 2, 720, 12), 3); }
+await shot('prep-garlic');
+await clickText('손질 완료'); await sleep(1500);
+const inv = await G('window.__game.save.biz.inventory');
+if (!(inv.garlic > 0)) throw new Error('마늘 손질 결과가 인벤토리에 없음: ' + JSON.stringify(inv));
+await clickText('닫기');
+// 영업 시작 → 첫 손님은 채끝 스테이크로 고정(시나리오 재현성)
+await clickText('영업 시작'); await sleep(500);
+await page.evaluate(() => { const d = window.__game.day; d.weights = d.weights.filter((x) => x.d.key === 'strip'); d.sumW = d.weights[0].w; d.vipRate = 0; });
+await clickText('알겠어요'); await sleep(300);
+await page.waitForSelector('.tk-btn', { timeout: 30000 });
+await shot('hall');
+await page.locator('.tk-btn').first().click();
+await sleep(500);
 
 // ---------- 1. 손질 ----------
 await shot('trim-intro');
@@ -108,25 +126,6 @@ const trimInfo = await G(`(() => { const s = window.__game.scene; return { stage
 if (trimInfo.stage === 0 && !(await G('window.__game.scene.done'))) await clickText('손질 완료');
 await sleep(1300);
 
-// ---------- 2. 양배추 ----------
-await page.waitForFunction(() => window.__game.scene?.constructor.name === 'CabbageScene', null, { timeout: 10000 });
-await sleep(300);
-if (await G(`document.getElementById('overlay').classList.contains('show')`)) await clickText('시작!');
-await sleep(300);
-const cuts = style === 'sloppy' ? 6 : 16;
-for (let i = 0; i < cuts; i++) {
-  const y = 330 + (i * 300) / cuts + (style === 'sloppy' ? Math.random() * 20 : 0);
-  const pts = line(30, y, 360, y + 14, 30).map(([x, yy], j) => [x, yy + Math.sin(j / 4) * 3]);
-  await drag(pts, 4);
-}
-await shot('cabbage-cut');
-// 세로로도 몇 번
-for (let i = 0; i < (style === 'sloppy' ? 1 : 5); i++) await drag(line(120 + i * 35, 290, 125 + i * 35, 640, 30), 4);
-await sleep(300);
-await shot('cabbage-done');
-await clickText('채썰기 완료');
-await sleep(1300);
-
 // ---------- 3. 시즈닝 ----------
 await clickText('시작!');
 await sleep(300);
@@ -155,8 +154,8 @@ let flips = 0;
 const t0 = Date.now();
 let shotCook = false;
 while (Date.now() - t0 < 120000) {
-  const s = await G(`(() => { const sc = window.__game.scene; const c = sc.sim; const T = Array.from(c.T); return { core: Math.min(...T), down: c.brown[c.down], folded: sc.folded, air: !!sc.air, pan: sc.pan.temp, stage: window.__game.state.stageIdx }; })()`);
-  if (s.stage !== 3) break;
+  const s = await G(`(() => { const sc = window.__game.scene; if (sc.constructor.name !== 'CookScene') return { stage: sc.constructor.name }; const c = sc.sim; const T = Array.from(c.T); return { core: Math.min(...T), down: c.brown[c.down], folded: sc.folded, air: !!sc.air, pan: sc.pan.temp, stage: window.__game.scene.constructor.name }; })()`);
+  if (s.stage !== 'CookScene') break;
   if (s.folded) { const p = await G(`(() => { const sc = window.__game.scene; const L = sc.layout(); return [L.cx + sc.pos.x * L.k, L.cy + sc.pos.y * L.k]; })()`); await page.mouse.click(p[0], p[1]); await sleep(200); continue; }
   // 이월 상승(잔열) 고려해 목표보다 7℃ 낮을 때 꺼냄
   if (s.core >= target - 7.5) break;
@@ -181,25 +180,19 @@ await clickText('꺼내기');
 await sleep(1500);
 
 // ---------- 5. 플레이팅 ----------
-await clickText('꾸미기 시작');
+await clickText('담기 시작');
 await sleep(300);
 async function trayDrag(idx, tx, ty) {
   const p = await G(`(() => { const sc = window.__game.scene; const L = sc.layout(); const W = window.__game.W; const col = ${idx} % 5, row = Math.floor(${idx} / 5); return [col * W / 5 + W / 10, L.trayY + row * L.trayH + L.trayH * 0.4, L.cx, L.cy, L.k]; })()`);
   await drag(line(p[0], p[1], p[2] + tx * p[4], p[3] + ty * p[4], 12), 6);
 }
 if (style === 'good') {
-  await trayDrag(0, 70, 55);                               // 샐러드
-  for (const [x, y] of [[95, 10], [80, 85], [105, 60]]) await trayDrag(1, x, y); // 토마토 3
-  for (const [x, y] of [[-80, 60], [-70, 72], [-90, 50]]) await trayDrag(2, x, y); // 아스파라거스 3
-  await trayDrag(3, 20, -75);                              // 로즈마리
-  await trayDrag(4, 5, 70);                                // 마늘
-  // 소스
-  await trayDrag(9, 0, 0);
+  // 손질해 둔 마늘만 쟁반에 있음 → 끌어다 놓기 + 소스
+  await trayDrag(4, 70, 55);
+  await trayDrag(6, 0, 0);
   const p = await G(`(() => { const L = window.__game.scene.layout(); return [L.cx, L.cy, L.k]; })()`);
   await drag(Array.from({ length: 26 }, (_, i) => [p[0] + (-95 + i * 7) * p[2], p[1] + (95 + Math.sin(i / 4) * 8) * p[2]]), 6);
-  await trayDrag(9, 0, 0);
-  // 접시 밖으로 버리기 테스트
-  await trayDrag(5, 0, 400);
+  await trayDrag(6, 0, 0);
 }
 await sleep(300);
 await shot('plate-done');
@@ -210,21 +203,31 @@ await page.waitForSelector('.stars', { timeout: 30000 });
 await sleep(1200);
 await shot('result-card');
 const result = await G(`(() => { const s = window.__game.scene; return { total: s.res.total, stars: s.res.stars, parts: s.res.parts.map(p => [p.label, +p.score.toFixed(1), p.max]), comments: s.res.comments, cook: { core: window.__game.state.cook?.core, brown: window.__game.state.cook?.brown, flips: window.__game.state.cook?.flips, folds: window.__game.state.cook?.folds }, timeLeft: window.__game.state.timeLeft }; })()`);
-// 가게로 돌아가 정산 반영 확인
-await clickText('가게로');
+// 홀로 돌아가 영업 마감 → 정산
+await clickText('홀로 돌아가기');
+await sleep(800);
+await shot('hall-after');
+await page.evaluate(() => window.__game.endDayNow());
+await page.waitForSelector('text=영업 종료', { timeout: 15000 });
+await sleep(500);
+await shot('day-summary');
+await clickText('가게 정비하기');
 await sleep(600);
-await shot('shop-after');
 const biz = await G('window.__game.save.biz');
 if (biz.day !== 2 || !(biz.totalServed > 0)) throw new Error('영업 정산이 반영되지 않음: ' + JSON.stringify(biz));
-// 메뉴판 가격 조정 + 대회 목록 열기
-await clickText('메뉴판');
-await sleep(300);
-await page.locator('.stepper button', { hasText: '+' }).first().click();
+// 직원 고용 화면 + 메뉴판 + 대회
+await page.evaluate(() => { const g = window.__game; g.saveBiz({ ...g.save.biz, money: 500000 }); g.toShop(); });
+await clickText('직원'); await sleep(300);
+await page.locator('.cust', { hasText: '견습' }).click(); await sleep(400);
+await shot('staff');
+const staffN = await G('window.__game.save.biz.staff.length');
+if (staffN !== 1) throw new Error('직원 고용 실패');
+await clickText('완료'); await sleep(200);
+await clickText('메뉴판'); await sleep(300);
 await page.locator('.stepper button', { hasText: '+' }).first().click();
 await shot('menu-price');
 await clickText('완료');
-await clickText('요리대회');
-await sleep(300);
+await clickText('요리대회'); await sleep(300);
 await shot('contests');
 console.log(JSON.stringify({ style, season, trimInfo, result, biz: { day: biz.day, money: biz.money, rep: biz.rep, served: biz.totalServed } }, null, 1));
 await browser.close();

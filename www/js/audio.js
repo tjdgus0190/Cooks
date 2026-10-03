@@ -1,3 +1,4 @@
+import { vibrate, prefs } from './native.js';
 // 절차적 사운드 (외부 파일 없이 WebAudio로 합성)
 let ctx = null, master = null, noiseBuf = null;
 let sizzle = null;
@@ -8,7 +9,7 @@ export function initAudio() {
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = 0.8;
+  master.gain.value = prefs.sound ? 0.8 : 0;
   master.connect(ctx.destination);
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const d = noiseBuf.getChannelData(0);
@@ -85,13 +86,10 @@ export function setSizzle(level) {
   if (level > 0.1 && Math.random() < level * 0.25) noise(0.03, { type: 'highpass', freq: 3000 + Math.random() * 4000, gain: 0.15 * level, decay: 0.025 });
 }
 
-export function haptic(kind = 'light') {
-  try {
-    const C = window.Capacitor;
-    if (C && C.nativePromise && (C.PluginHeaders || []).some((h) => h.name === 'Haptics')) {
-      C.nativePromise('Haptics', 'impact', { style: kind === 'heavy' ? 'HEAVY' : kind === 'medium' ? 'MEDIUM' : 'LIGHT' }).catch(() => {});
-      return;
-    }
-  } catch (e) { /* 무시 */ }
-  if (navigator.vibrate) navigator.vibrate(kind === 'heavy' ? 40 : kind === 'medium' ? 20 : 8);
+export function haptic(kind = 'light') { vibrate(kind); }
+
+/** 사운드 켜기/끄기 */
+export function setSoundOn(on) {
+  prefs.sound = on;
+  if (master) master.gain.value = on ? 0.8 : 0;
 }

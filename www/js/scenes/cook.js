@@ -39,7 +39,7 @@ export class CookScene {
     const hints = this.game.state.customer.hints;
     this.game.instruct({
       icon: '🍳',
-      title: '4. 굽기',
+      title: '굽기',
       lines: [
         '팬을 튕기듯 휴대폰을 <b>위로 휙!</b> 올리면 고기가 뒤집혀요. (화면을 위로 빠르게 쓸어올려도 돼요)',
         '<b>너무 약하거나 너무 세면</b> 고기가 접혀요. 접히면 고기를 탭해서 펴세요.',
@@ -192,7 +192,7 @@ export class CookScene {
       if (this.placed >= 1) { sfx.splat(); haptic('medium'); for (let i = 0; i < 14; i++) this.addSplat(1); }
     }
     const inPan = this.placed >= 1 && !this.air && !this.done;
-    const simDt = this.active && !this.done && !this.game.timer.paused ? dt * TIME_SCALE : 0;
+    const simDt = this.active && !this.done && !this.game.timer.paused ? dt * TIME_SCALE * (this.game.state.quick ? 1.6 : 1) : 0;
     if (simDt > 0) {
       stepPan(this.pan, simDt, HEAT_LEVELS[this.heat], inPan);
       if (inPan) {

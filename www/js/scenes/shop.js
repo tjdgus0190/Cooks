@@ -2,6 +2,8 @@
 import { drawCounter, rr } from '../art.js';
 import * as E from '../economy.js';
 import { motion } from '../motion.js';
+import { PREP } from '../recipes.js';
+import { prepMenuHtml, prepActions } from './hall.js';
 import { sfx } from '../audio.js';
 
 const LOOK = [
@@ -25,60 +27,65 @@ export class ShopScene {
     const up = E.upgradeStatus(b);
     const fame = b.fame.mult > 1 ? `<span class="pill hot">🔥 명성 ×${b.fame.mult.toFixed(2)} · ${b.fame.days}일</span>` : '';
     const medals = b.medals.length ? `<span class="pill">🏅 ${b.medals.length}</span>` : '';
-    const hist = b.history.slice(-3).reverse().map((h) => `<div>${h.day}일차 · ${E.dishByKey(h.dish).name} · 만족 ${h.sat} · 손님 ${h.vis}명 · ${h.profit >= 0 ? '+' : ''}${E.won(h.profit)}</div>`).join('');
+    const inv = b.inventory || {};
+    const invTxt = Object.keys(PREP).filter((k) => inv[k] > 0).map((k) => `${PREP[k].icon}${inv[k]}`).join(' ') || '없음 — 영업 전에 손질해 두세요!';
+    const hist = b.history.slice(-3).reverse().map((h) => `<div>${h.day}일차 · 손님 ${h.served ?? h.vis ?? 0}명${h.lost ? ` (놓침 ${h.lost})` : ''} · 만족 ${h.sat} · ${h.profit >= 0 ? '+' : ''}${E.won(h.profit)}</div>`).join('');
     ui.showCard(`
-      <div class="shop-head"><div><div class="shop-name">${shop.name}</div><div class="shop-sub">${b.day}일차 · 누적 손님 ${b.totalServed.toLocaleString()}명</div></div>${medals}</div>
+      <div class="shop-head"><div><div class="shop-name">${shop.name}</div><div class="shop-sub">${b.day}일차 아침 · 좌석 ${shop.seats} · 직원 ${b.staff.length}/${shop.staffSlots}</div></div>${medals}</div>
       <div class="stat-grid">
         <div class="stat"><div class="k">자금</div><div class="v">${E.won(b.money)}</div></div>
         <div class="stat"><div class="k">평판 (고객 만족도)</div><div class="v">${b.rep.toFixed(0)}<small>/100</small></div><div class="mini"><i style="width:${b.rep}%"></i></div></div>
       </div>
       ${fame}
+      <div class="inv-line">📦 손질 재료: ${invTxt}</div>
       <div class="menu-grid">
-        <button class="btn big" data-act="service">🍳 영업 시작</button>
+        <button class="btn big" data-act="open">🏮 ${b.day}일차 영업 시작</button>
+        <button class="btn secondary" data-act="prep">🔪 준비대</button>
+        <button class="btn secondary" data-act="staff">👥 직원</button>
         <button class="btn secondary" data-act="menu">📋 메뉴판·가격</button>
         <button class="btn secondary" data-act="contest">🏆 요리대회</button>
         <button class="btn secondary" data-act="upgrade">🏗️ 가게 확장${up.ok ? ' <span class="dot"></span>' : ''}</button>
+        <button class="btn secondary" data-act="settings">⚙️ 설정</button>
       </div>
-      ${hist ? `<div class="notes">${hist}</div>` : '<p class="tagline">평판이 쌓이면 단가를 올릴 수 있어요. 너무 비싸면 손님이 실망해요!</p>'}
-      <div class="row"><button class="btn secondary small" data-act="title">타이틀</button></div>`, {
-      service: () => this.chooseDish(),
+      ${hist ? `<div class="notes">${hist}</div>` : '<p class="tagline">영업 전에 준비대에서 재료를 손질해 두면 바쁜 시간에 덜 허둥대요!</p>'}`, {
+      open: () => this.openDay(),
+      prep: () => this.showPrep(),
+      staff: () => this.showStaff(),
       menu: () => this.showMenu(),
       contest: () => this.showContests(),
       upgrade: () => this.showUpgrade(),
-      title: () => this.game.toTitle(),
+      settings: () => this.game.showSettings(() => this.showMain()),
     }, { bottom: true });
   }
 
-  // ---------------- 영업 ----------------
-  chooseDish() {
-    const dishes = E.unlockedDishes(this.biz);
-    if (dishes.length === 1) return this.serviceIntro(dishes[0]);
-    const actions = { back: () => this.showMain() };
-    const list = dishes.map((d, i) => {
-      actions[`d${i}`] = () => this.serviceIntro(d);
-      return `<button class="cust" data-act="d${i}"><span class="face">${d.icon}</span><span class="info"><div class="name">${d.name}</div><div class="desc">${d.desc}</div></span><span class="best">${E.won(this.biz.prices[d.key] ?? d.base)}</span></button>`;
-    }).join('');
-    this.game.ui.showCard(`<h2>오늘의 대표 요리</h2><p>오늘 온 손님 모두가 이 요리를 맛보고 가게를 평가해요.</p><div class="customers">${list}</div><div class="row"><button class="btn secondary" data-act="back">뒤로</button></div>`, actions, { bottom: true });
+  onBack() { this.game.toTitle(); return true; }
+
+  async openDay() {
+    await this.game.enableMotion();
+    sfx.ding();
+    this.game.ui.toast(`${this.biz.day}일차 영업 시작!`, { sub: '🏮 OPEN', ms: 1200 });
+    this.game.openDay();
   }
 
-  serviceIntro(dish) {
+  showPrep() {
+    this.game.ui.showCard(prepMenuHtml(this.game), { ...prepActions(this.game, () => { this.game.toShop(); this.game.scene.showPrep(); }), back: () => this.showMain() }, { bottom: true });
+  }
+
+  // ---------------- 직원 ----------------
+  showStaff() {
     const b = this.biz;
-    const tutorial = b.level === 1 && b.day <= 3;
-    const c = E.makeCustomer(b, Math.random, { tutorial });
-    const price = b.prices[dish.key] ?? dish.base;
-    const fair = E.fairPrice(b, dish);
-    const vis = E.visitors(b, price, fair);
-    this.game.ui.showCard(`
-      <div class="icon">${c.face}</div>
-      <h2>${c.name} <small style="color:var(--muted)">대표 손님</small></h2>
-      <div class="bubble">“${c.line}”</div>
-      <p>${dish.icon} <b style="color:var(--cream)">${dish.name}</b> · ${E.won(price)}<br>오늘 예상 손님 <b style="color:var(--cream)">약 ${vis}명</b> — 이 한 접시가 오늘 하루의 평가가 돼요.</p>
-      ${tutorial ? '<p class="tagline">처음 3일은 적정 구간 힌트가 보여요</p>' : ''}
-      ${motion.permission === 'denied' ? '<p style="color:var(--bad)">모션 센서 권한이 없어 터치 조작으로 대체돼요.</p>' : ''}
-      <div class="row"><button class="btn secondary" data-act="back">뒤로</button><button class="btn" data-act="go">주문 받기</button></div>`, {
-      back: () => this.showMain(),
-      go: async () => { await this.game.enableMotion(); this.game.ui.hideOverlay(); this.game.startOrder({ mode: 'service', dishKey: dish.key, customer: c }); },
-    }, { bottom: true });
+    const actions = { back: () => this.showMain() };
+    const hired = b.staff.map((st, i) => {
+      const t = E.staffTier(st.tier);
+      actions[`f${i}`] = () => { this.biz = E.fire(this.biz, st.id); sfx.pop(); this.showStaff(); };
+      return `<div class="price-row"><div class="pinfo"><div class="name">${t.icon} ${t.name}</div><div class="desc">솜씨 ${t.skill} · 주문당 ${t.time}초 · 일당 ${E.won(t.wage)}</div></div><button class="btn secondary small" data-act="f${i}">내보내기</button></div>`;
+    }).join('') || '<p>아직 직원이 없어요. 혼자서는 손님을 다 받기 힘들어요!</p>';
+    const tiers = E.STAFF_TIERS.map((t, i) => {
+      const st = E.canHire(b, t.key);
+      actions[`h${i}`] = () => { this.biz = E.hire(this.biz, t.key); sfx.fanfare(); this.game.ui.toast(`${t.name} 채용!`); this.showStaff(); };
+      return `<button class="cust" data-act="h${i}" ${st.ok ? '' : 'disabled'}><span class="face">${t.icon}</span><span class="info"><div class="name">${t.name}</div><div class="desc">${st.ok ? `솜씨 ${t.skill} · 주문당 ${t.time}초 · 일당 ${E.won(t.wage)}` : st.why}</div></span><span class="best">채용<br>${E.won(t.hire)}</span></button>`;
+    }).join('');
+    this.game.ui.showCard(`<h2>👥 직원</h2><p>직원은 사장님이 안 맡은 <b>일반 주문</b>을 자동으로 요리해요. 솜씨는 사장님보다 낮고, <b>VIP는 못 맡아요</b>. 손질 재료가 없으면 직원도 요리할 수 없어요.</p>${hired}<h2 style="margin-top:14px">채용하기</h2><div class="customers">${tiers}</div><div class="row"><button class="btn" data-act="back">완료</button></div>`, actions, { bottom: true });
   }
 
   // ---------------- 메뉴판 ----------------
@@ -132,6 +139,7 @@ export class ShopScene {
       <ul>
         <li>과제 요리: <b>${dish.icon} ${dish.name}</b></li>
         <li>제한 시간 <b>${Math.floor(c.time / 60)}분 ${c.time % 60 ? `${c.time % 60}초` : ''}</b> · 힌트 없음 · 심사 엄격도 ×${c.strict}</li>
+        <li>필요한 손질 재료: ${Object.keys(dish.needs || {}).map((k) => `${PREP[k].icon}${PREP[k].name}`).join(', ') || '없음'} (가게 재고에서 사용)</li>
         <li>경쟁자 5명과 점수로 순위를 겨뤄요. 3위 안에 들면 입상!</li>
         <li>상금 🥇${E.won(c.prizes[0])} 🥈${E.won(c.prizes[1])} 🥉${E.won(c.prizes[2])}</li>
         <li>우승 시 ${5}일간 손님 ×${c.fame[0]}</li>

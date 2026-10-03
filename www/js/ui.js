@@ -1,8 +1,8 @@
 // DOM HUD 헬퍼
 const $ = (id) => document.getElementById(id);
 
-export function showHud(on) { $('hud').classList.toggle('hidden', !on); }
-export function setStage(n, total, name) { $('stage-num').textContent = `${n}/${total}`; $('stage-name').textContent = name; }
+export function showHud(on) { $('hud').classList.toggle('hidden', !on); if (!on) { const b = $('order-badge'); if (b) b.style.display = 'none'; } }
+export function setStage(n, total, name) { $('stage-num').textContent = total ? `${n}/${total}` : `${n}`; $('stage-name').textContent = name; }
 export function setOrder(text) { $('order-chip').textContent = text; }
 export function setHint(text) { const h = $('hint'); if (h.textContent !== text) { h.textContent = text; placeHint(); } }
 /** 힌트를 하단 조작 버튼 바로 위에 배치 (버튼이 두 줄이 되어도 겹치지 않게) */
@@ -97,4 +97,22 @@ export function toast(text, { bad = false, sub = '', ms = 1100 } = {}) {
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/** 작은 알림 (요리 중 가게 소식 등) */
+export function notify(text, kind = '') {
+  const box = $('notify');
+  const el = document.createElement('div');
+  el.className = `nt ${kind}`;
+  el.textContent = text;
+  box.appendChild(el);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 2600);
+}
+
+export function setOrderBadge(n) {
+  let b = $('order-badge');
+  if (!b) { b = document.createElement('span'); b.id = 'order-badge'; $('order-chip').after(b); }
+  b.textContent = n > 0 ? `대기 ${n}` : '';
+  b.style.display = n > 0 ? '' : 'none';
 }
