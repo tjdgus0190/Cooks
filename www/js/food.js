@@ -112,20 +112,36 @@ export function drawLobster(g, { cook = 0, split = 0, cut = null, glaze = 0, che
   for (const side of [-1, 1]) {
     g.save();
     g.translate(side * gap, 0);
-    // 껍질 마디 6개
-    for (let i = 0; i < 6; i++) {
-      const y = -66 + i * 21, w = 30 - i * 2.2;
-      const grd = g.createLinearGradient(0, y, side * w, y + 18);
-      grd.addColorStop(0, rgb(mix(shell, [255, 200, 170], 0.25)));
-      grd.addColorStop(1, rgb(mix(shell, [20, 10, 5], 0.35)));
+    // 반쪽만 그리도록 클립 (갈라지지 않았으면 두 반쪽이 맞붙어 하나로 보임)
+    g.beginPath(); g.rect(side < 0 ? -60 : 0, -90, 60, 200); g.clip();
+    // 꼬리 지느러미 (부채 5갈래)
+    for (let k = -2; k <= 2; k++) {
+      g.save(); g.translate(0, 62); g.rotate(k * 0.42);
+      const fg = g.createLinearGradient(0, 0, 0, 30);
+      fg.addColorStop(0, rgb(mix(shell, [255, 210, 190], 0.1))); fg.addColorStop(1, rgb(mix(shell, [20, 10, 5], 0.3)));
+      g.fillStyle = fg;
+      g.beginPath(); g.moveTo(-5, 0); g.quadraticCurveTo(-11, 22, 0, 30); g.quadraticCurveTo(11, 22, 5, 0); g.closePath(); g.fill();
+      g.strokeStyle = rgb(mix(shell, [0, 0, 0], 0.4), 0.5); g.lineWidth = 0.6; g.stroke();
+      g.restore();
+    }
+    // 껍질 마디 6개 (아래 마디부터 그려서 위 마디가 겹쳐 보이게)
+    for (let i = 5; i >= 0; i--) {
+      const y = -66 + i * 21, w = 31 - i * 2.4;
+      const grd = g.createRadialGradient(-w * 0.3, y + 4, 2, 0, y + 10, w * 1.2);
+      grd.addColorStop(0, rgb(mix(shell, [255, 220, 200], 0.35)));
+      grd.addColorStop(0.6, rgb(shell));
+      grd.addColorStop(1, rgb(mix(shell, [10, 5, 0], 0.45)));
       g.fillStyle = grd;
       g.beginPath();
-      g.moveTo(0, y); g.quadraticCurveTo(side * (w + 4), y + 2, side * w, y + 20); g.lineTo(0, y + 22); g.closePath(); g.fill();
-      g.strokeStyle = rgb(mix(shell, [0, 0, 0], 0.5), 0.6); g.lineWidth = 0.8; g.stroke();
+      g.moveTo(-w, y + 22); g.quadraticCurveTo(-w - 3, y + 2, 0, y - 1); g.quadraticCurveTo(w + 3, y + 2, w, y + 22);
+      g.quadraticCurveTo(0, y + 27, -w, y + 22); g.closePath(); g.fill();
+      g.strokeStyle = rgb(mix(shell, [0, 0, 0], 0.55), 0.55); g.lineWidth = 0.8; g.stroke();
+      // 반점과 하이라이트
+      g.fillStyle = rgb(mix(shell, [0, 0, 0], 0.4), 0.35);
+      for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(-w * 0.6 + k * w * 0.3, y + 10 + (k % 2) * 4, 1.1, 0, TAU); g.fill(); }
+      g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(-w * 0.7, y + 5); g.quadraticCurveTo(0, y + 1, w * 0.7, y + 5); g.stroke();
     }
-    // 꼬리 지느러미
-    g.fillStyle = rgb(mix(shell, [255, 220, 200], 0.15));
-    g.beginPath(); g.moveTo(0, 60); g.lineTo(side * 26, 82); g.quadraticCurveTo(side * 14, 92, 0, 88); g.closePath(); g.fill();
     // 속살 (갈라졌을 때 보임)
     if (split > 0.05) {
       g.save();
@@ -135,7 +151,6 @@ export function drawLobster(g, { cook = 0, split = 0, cut = null, glaze = 0, che
       mg.addColorStop(0, rgb(m)); mg.addColorStop(1, rgb(mix(m, [250, 170, 140], 0.35 + cook * 0.2)));
       g.fillStyle = mg;
       g.beginPath(); g.moveTo(0, -62); g.quadraticCurveTo(side * 22, -40, side * 18, 20); g.quadraticCurveTo(side * 12, 56, 0, 58); g.closePath(); g.fill();
-      // 붉은 결
       g.strokeStyle = `rgba(240,110,80,${0.25 + cook * 0.35})`; g.lineWidth = 1.2;
       for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(side * 3, -50 + k * 22); g.quadraticCurveTo(side * 14, -42 + k * 22, side * 16, -30 + k * 22); g.stroke(); }
       g.restore();

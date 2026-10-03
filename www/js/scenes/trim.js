@@ -34,7 +34,7 @@ export class TrimScene {
     ui.addButton('⟲', () => this.rotateBy(-Math.PI / 8), 'secondary');
     ui.addButton('⟳', () => this.rotateBy(Math.PI / 8), 'secondary');
     this.doneBtn = ui.addButton('손질 완료 ✓', () => this.finish());
-    this.meter = ui.addMeter(`${this.subj.what} 제거`);
+    this.meter = ui.addMeter(this.subj.meterLabel || `${this.subj.what} 제거`);
     this.dmgMeter = ui.addMeter('고기 손상');
     ui.setHint(this.subj.hint);
   }

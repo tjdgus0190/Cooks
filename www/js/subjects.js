@@ -46,7 +46,7 @@ export function makeSubject(kind, { dish } = {}) {
     return {
       kind, mems, angleLimit: false, scale: 1.3, baseRot: 0,
       intro: { icon: '🦞', title: '랍스터 반 가르기', lines: ['꼬리 <b>정중앙 선</b>을 따라 칼을 그어 반으로 갈라요.', '중심에서 벗어나면 살이 찢어져요.'] },
-      hint: '정중앙 점선을 따라 끝까지 그어요', what: '절개',
+      hint: '정중앙 점선을 따라 끝까지 그어요', what: '절개', meterLabel: '절개 진행',
       inside: (x, y) => Math.abs(x) < 30 && y > -70 && y < 90,
       inFat: () => false,
       draw(g, { cook = 0 } = {}) {
