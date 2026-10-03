@@ -8,7 +8,7 @@ export function idealCook() {
   const Tmax = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     const d = Math.abs(i - (n - 1) / 2) / ((n - 1) / 2);
-    Tmax[i] = 55 + Math.pow(d, 3) * 60;
+    Tmax[i] = 55.5 + Math.pow(d, 4) * 45;
   }
   return { Tmax, brown: [1.08, 1.0], up: 0, grains: [], oilDrops: [], mems: null, scars: [] };
 }

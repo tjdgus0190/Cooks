@@ -186,10 +186,10 @@ if (style === 'good') {
 await sleep(300);
 await shot('plate-done');
 await clickText('서빙');
-await sleep(1200);
+await page.waitForFunction(() => window.__game.scene?.res && window.__game.scene.t > 2.6, null, { timeout: 30000 });
 await shot('result-cut');
-await sleep(3600);
-await sleep(900);
+await page.waitForSelector('.stars', { timeout: 30000 });
+await sleep(1200);
 await shot('result-card');
 const result = await G(`(() => { const s = window.__game.scene; return { total: s.res.total, stars: s.res.stars, parts: s.res.parts.map(p => [p.label, +p.score.toFixed(1), p.max]), comments: s.res.comments, cook: { core: window.__game.state.cook?.core, brown: window.__game.state.cook?.brown, flips: window.__game.state.cook?.flips, folds: window.__game.state.cook?.folds }, timeLeft: window.__game.state.timeLeft }; })()`);
 console.log(JSON.stringify({ style, season, trimInfo, result }, null, 1));

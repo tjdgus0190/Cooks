@@ -11,8 +11,8 @@ jobs:
     name: 테스트 + 브라우저 QA
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -23,7 +23,7 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           CHROMIUM="$(node -e "console.log(require('playwright').chromium.executablePath())")" npm run qa
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: qa-screenshots
@@ -32,28 +32,27 @@ jobs:
   android:
     name: Android APK
     runs-on: ubuntu-latest
-    needs: test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
       - run: npm ci
       - run: npx cap sync android
       - name: Gradle 빌드 (debug APK)
         working-directory: android
         run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
       - name: APK 이름 정리
         run: cp android/app/build/outputs/apk/debug/app-debug.apk cooking-simulator-debug.apk
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: cooking-simulator-android-apk
           path: cooking-simulator-debug.apk
@@ -61,10 +60,9 @@ jobs:
   ios:
     name: iOS 빌드
     runs-on: macos-26
-    needs: test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -88,7 +86,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           mkdir -p Payload && cp -R build/device/Build/Products/Release-iphoneos/App.app Payload/
           zip -qry "$GITHUB_WORKSPACE/cooking-simulator-unsigned.ipa" Payload
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: cooking-simulator-ios
           path: |

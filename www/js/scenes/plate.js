@@ -7,7 +7,7 @@ import { clamp, TAU, pointInPoly, dist, pathLength } from '../geom.js';
 import { idealCook } from '../dish.js';
 
 export const PLATE_R = 150;
-export const STEAK_SCALE = 0.62;
+export const STEAK_SCALE = 0.52;
 const LIMITS = { slaw: 2, tomato: 5, asparagus: 5, rosemary: 3, garlic: 5, mushroom: 4, butter: 1, micro: 4, flake: 3 };
 const SAUCE_MAX = 700;
 
@@ -46,18 +46,23 @@ export class PlateScene {
       ],
       button: '꾸미기 시작',
     }).then(() => { this.active = true; });
-    this.segSlice = ui.addSegment([{ key: 'sliced', label: '🔪 슬라이스' }, { key: 'whole', label: '🥩 통째로' }], 'sliced', (k) => { this.sliced = k === 'sliced'; sfx.pop(); });
-    ui.addButton('↻', () => this.rotateSel(), 'secondary small');
+    this.segSlice = ui.addSegment([{ key: 'sliced', label: '썰어서' }, { key: 'whole', label: '통째로' }], 'sliced', (k) => { this.sliced = k === 'sliced'; sfx.pop(); });
+    ui.addButton('⟳', () => this.rotateSel(), 'secondary small');
     ui.addButton('서빙 🛎️', () => this.finish());
+    ui.hintAtTop(true);
     ui.setHint('가니쉬를 끌어다 접시를 꾸며보세요');
   }
 
   layout() {
     const { W, H, S } = this.game;
-    const pr = Math.min(W * 0.46, H * 0.25);
     const trayH = 64 * S;
-    const trayY = H - 82 * S - 2 * trayH;
-    return { cx: W / 2, cy: Math.min(H * 0.41, trayY - pr - 12 * S + 0), pr, k: pr / PLATE_R, trayY, trayH };
+    // 하단 버튼 영역 바로 위에 쟁반 배치 (버튼 줄 수와 무관하게 겹치지 않게)
+    const ctl = document.getElementById('controls');
+    let ctlTop = H - 76;
+    for (const el of ctl.children) ctlTop = Math.min(ctlTop, el.getBoundingClientRect().top);
+    const trayY = ctlTop - 10 - 2 * trayH;
+    const pr = Math.min(W * 0.46, H * 0.25, (trayY - 120 * S) / 2);
+    return { cx: W / 2, cy: Math.min(H * 0.41, trayY - pr - 12 * S), pr, k: pr / PLATE_R, trayY, trayH };
   }
 
   toLocal(x, y) { const { cx, cy, k } = this.layout(); return [(x - cx) / k, (y - cy) / k]; }

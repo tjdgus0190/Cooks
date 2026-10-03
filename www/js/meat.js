@@ -255,10 +255,10 @@ function drawCrustTexture(scale) {
       g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
     }
     // 미세 알갱이 (구운 표면의 오돌토돌함)
-    for (let i = 0; i < 5200; i++) {
+    for (let i = 0; i < 3600; i++) {
       const x = -135 + R() * 270, y = -95 + R() * 200;
       const v = R();
-      g.fillStyle = v < 0.55 ? `rgba(30,10,2,${0.18 + R() * 0.4})` : v < 0.85 ? `rgba(120,52,16,${0.2 + R() * 0.3})` : `rgba(255,196,120,${0.18 + R() * 0.3})`;
+      g.fillStyle = v < 0.5 ? `rgba(40,12,2,${0.15 + R() * 0.3})` : v < 0.95 ? `rgba(130,50,14,${0.2 + R() * 0.3})` : `rgba(240,170,90,${0.15 + R() * 0.2})`;
       const r = 0.25 + Math.pow(R(), 3) * 1.6;
       g.beginPath(); g.ellipse(x, y, r * (1 + R()), r, R() * 3, 0, TAU); g.fill();
     }
@@ -287,7 +287,7 @@ function drawGlossTexture(scale) {
   withLocal(c, scale, (g) => {
     g.save(); g.clip(SHAPE_PATH);
     const broad = g.createLinearGradient(-120, -90, 60, 60);
-    broad.addColorStop(0, 'rgba(255,240,220,0.20)'); broad.addColorStop(0.45, 'rgba(255,240,220,0.04)'); broad.addColorStop(1, 'rgba(255,240,220,0)');
+    broad.addColorStop(0, 'rgba(255,240,220,0.10)'); broad.addColorStop(0.45, 'rgba(255,240,220,0.02)'); broad.addColorStop(1, 'rgba(255,240,220,0)');
     g.fillStyle = broad; g.fillRect(-140, -100, 280, 210);
     for (let i = 0; i < 14; i++) {
       const x = -110 + R() * 200, y = -70 + R() * 130;
@@ -301,7 +301,7 @@ function drawGlossTexture(scale) {
       g.fillStyle = gr; g.beginPath(); g.arc(0, 0, w, 0, TAU); g.fill();
       g.restore();
     }
-    for (let i = 0; i < 420; i++) {
+    for (let i = 0; i < 180; i++) {
       const x = -125 + R() * 250, y = -85 + R() * 180;
       // 왼쪽 위(조명 방향)일수록 더 많이 반짝임
       const bias = 1 - (x + y + 200) / 420;
@@ -338,6 +338,11 @@ export function drawSteakTop(g, tex, opts = {}) {
     strokeLine(g, FAT_LINE, FAT_W * 2, `rgb(${fat.join(',')})`);
     g.globalAlpha = clamp(brown * 1.1, 0, 1) * 0.9;
     g.drawImage(tex.crust, BX0, BY0, BW, BH);
+    // 구운 면의 따뜻한 볼륨감 (가운데가 볼록하게 빛남)
+    g.globalAlpha = clamp(brown, 0, 1) * 0.28;
+    const vol = g.createRadialGradient(-30, -25, 5, 0, 0, 140);
+    vol.addColorStop(0, 'rgba(255,150,70,0.55)'); vol.addColorStop(0.5, 'rgba(120,40,10,0.15)'); vol.addColorStop(1, 'rgba(20,5,0,0.9)');
+    g.fillStyle = vol; g.fillRect(BX0, BY0, BW, BH);
     if (brown > 1.4) {
       // 탄 부분
       g.globalAlpha = clamp((brown - 1.4) * 0.8, 0, 0.9);

@@ -528,11 +528,11 @@ export function drawSauce(g, stroke) {
   for (let pass = 0; pass < 3; pass++) {
     for (let i = 1; i < n; i++) {
       const t = i / n;
-      const w = Math.sin(Math.min(1, t * 1.2) * Math.PI) * 9 + 1.5;
+      const w = Math.sin(Math.min(1, t * 1.15) * Math.PI) * 13 + 1.5;
       g.beginPath(); g.moveTo(stroke[i - 1][0], stroke[i - 1][1]); g.lineTo(stroke[i][0], stroke[i][1]);
       if (pass === 0) { g.strokeStyle = 'rgba(40,12,4,0.25)'; g.lineWidth = w + 3; }
       else if (pass === 1) { g.strokeStyle = '#4a1a0b'; g.lineWidth = w; }
-      else { g.strokeStyle = 'rgba(255,190,140,0.35)'; g.lineWidth = Math.max(0.8, w * 0.18); }
+      else { g.strokeStyle = 'rgba(255,200,160,0.45)'; g.lineWidth = Math.max(0.8, w * 0.16); g.save(); g.translate(-w * 0.15, -w * 0.18); g.stroke(); g.restore(); continue; }
       g.stroke();
     }
   }

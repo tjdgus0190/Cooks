@@ -6,8 +6,12 @@ export function setStage(n, total, name) { $('stage-num').textContent = `${n}/${
 export function setOrder(text) { $('order-chip').textContent = text; }
 export function setHint(text) { const h = $('hint'); if (h.textContent !== text) { h.textContent = text; placeHint(); } }
 /** 힌트를 하단 조작 버튼 바로 위에 배치 (버튼이 두 줄이 되어도 겹치지 않게) */
+let hintTop = false;
+export function hintAtTop(on) { hintTop = on; placeHint(); }
 export function placeHint() {
   const c = $('controls'), h = $('hint');
+  if (hintTop) { h.style.bottom = 'auto'; h.style.top = 'calc(var(--safe-top) + 72px)'; return; }
+  h.style.top = 'auto';
   const rect = c.getBoundingClientRect();
   const top = c.children.length ? Math.min(...[...c.children].map((e) => e.getBoundingClientRect().top)) : rect.bottom;
   h.style.bottom = `${Math.max(80, window.innerHeight - top + 10)}px`;
@@ -23,7 +27,7 @@ export function setTimer(left, total) {
   $('timer').classList.toggle('warn', left <= 30);
 }
 
-export function clearControls() { $('controls').innerHTML = ''; }
+export function clearControls() { $('controls').innerHTML = ''; hintTop = false; }
 
 /** 버튼 추가: {label, onClick, cls} */
 export function addButton(label, onClick, cls = '') {

@@ -82,7 +82,11 @@ game.goStage = function (idx) {
   game.setScene(stage.scene);
 };
 
-game.nextStage = function () { sfx.ding(); game.goStage(game.state.stageIdx + 1); };
+game.nextStage = function () {
+  // 시간 초과로 이미 결과 화면에 간 뒤, 이전 단계의 지연 전환이 늦게 도착하는 경우 무시
+  if (!game.state || game.state.timedOut || game.scene instanceof ResultScene) return;
+  sfx.ding(); game.goStage(game.state.stageIdx + 1);
+};
 
 game.finish = function () {
   game.timer.running = false;

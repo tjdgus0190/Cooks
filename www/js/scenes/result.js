@@ -55,14 +55,14 @@ export class ResultScene {
       <div class="stars">${'★'.repeat(r.stars)}${'☆'.repeat(5 - r.stars)}</div>
       <div class="total">${r.total}<span style="font-size:18px;color:var(--muted)"> 점</span></div>
       <div class="bubble">${c.face} “${r.comments[0]}”${r.comments.slice(1).map((x) => `<br>· ${x}`).join('')}</div>
-      <div class="score-rows">${rows}</div>
-      <div class="notes">${notes}</div>
       ${unlockedNext ? `<p class="tagline">🔓 새 손님 '${next.name}'이(가) 찾아왔어요!</p>` : ''}
       <div class="row">
         <button class="btn secondary" data-act="menu">손님 목록</button>
         <button class="btn" data-act="retry">다시 도전</button>
         ${unlockedNext ? '<button class="btn" data-act="next">다음 손님 ▶</button>' : ''}
-      </div>`, {
+      </div>
+      <div class="score-rows">${rows}</div>
+      <div class="notes">${notes}</div>`, {
       menu: () => this.game.toTitle(),
       retry: () => { this.game.ui.hideOverlay(); this.game.newRun(c.id); },
       next: () => { this.game.ui.hideOverlay(); this.game.newRun(next.id); },
@@ -89,14 +89,14 @@ export class ResultScene {
     const mood = ph === 'react' ? this.res.mood : ph === 'chew' ? 'neutral' : 'neutral';
     const chew = ph === 'chew' ? this.t : 0;
     const enter = clamp(this.t / 0.8, 0, 1);
-    drawCustomer(g, c, W / 2, H * 0.17 - (1 - enter) * 40, S * 0.9, mood, chew, time);
+    drawCustomer(g, c, W / 2, H * 0.14 - (1 - enter) * 40, S * 0.85, mood, chew, time);
     if (this.plate && this.hasDish) {
-      const pr = Math.min(W * 0.42, H * 0.22);
-      const cy = H * 0.43 + (1 - enter) * 120;
+      const pr = Math.min(W * 0.4, H * 0.2);
+      const cy = H * 0.44 + (1 - enter) * 120;
       drawPlate(g, W / 2, cy, pr, dpr);
       const k = pr / PLATE_R;
       g.save(); g.translate(W / 2, cy); g.scale(k, k);
-      drawDish(g, tex, st.cook, { ...this.plate, cabbage: st.cabbage, selected: null, steakScale: this.plate.steakScale || 0.62 });
+      drawDish(g, tex, st.cook, { ...this.plate, cabbage: st.cabbage, selected: null, steakScale: this.plate.steakScale || 0.52 });
       g.restore();
       if (ph === 'cut' || ph === 'chew') this.drawCutPanel(g, ph === 'cut' ? clamp((this.t - 1.0) / 0.5, 0, 1) : clamp(1 - (this.t - 3.4) / 0.4, 0, 1));
     }

@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head><meta charset="utf-8"></head><body style="margin:0;background:#000">
+<script type="module">
+// 앱 아이콘/스플래시 렌더러 (tools/make-icons.mjs 에서 사용)
+import { buildSteakTextures } from './js/meat.js';
+import { drawSlicedSteak, idealCook } from './js/dish.js';
+import { drawGarnish } from './js/art.js';
+
+function bg(g, w, h) {
+  const gr = g.createRadialGradient(w * 0.5, h * 0.42, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.75);
+  gr.addColorStop(0, '#6b3a1f'); gr.addColorStop(0.55, '#2e170c'); gr.addColorStop(1, '#140a05');
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+}
+function steak(g, cx, cy, size) {
+  const k = size / 470;
+  const tex = buildSteakTextures(k * 1.4);
+  g.save(); g.translate(cx, cy); g.scale(k, k); g.rotate(-0.18);
+  g.translate(-55, 0);
+  drawSlicedSteak(g, tex, idealCook(), { slices: 6 });
+  g.restore();
+  g.save(); g.translate(cx + size * 0.3, cy - size * 0.24); g.scale(k * 1.4, k * 1.4); g.rotate(-0.6);
+  drawGarnish(g, 'rosemary', { seed: 2 }); g.restore();
+}
+window.render = (kind, w, h) => {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  if (kind === 'icon') { bg(g, w, h); steak(g, w / 2, h * 0.53, w * 0.95); }
+  else if (kind === 'round') {
+    g.beginPath(); g.arc(w / 2, h / 2, w / 2, 0, Math.PI * 2); g.clip(); bg(g, w, h); steak(g, w / 2, h * 0.53, w * 0.9);
+  } else if (kind === 'foreground') { steak(g, w / 2, h * 0.53, w * 0.62); }
+  else if (kind === 'splash') {
+    bg(g, w, h);
+    const m = Math.min(w, h);
+    steak(g, w / 2, h * 0.45, m * 0.8);
+    g.fillStyle = '#fff4e2'; g.textAlign = 'center';
+    g.font = `800 ${m * 0.085}px -apple-system, "Noto Sans KR", sans-serif`;
+    g.fillText('쿠킹 시뮬레이터', w / 2, h * 0.45 + m * 0.42);
+  }
+  return c.toDataURL('image/png');
+};
+window.ready = true;
+</script></body></html>
