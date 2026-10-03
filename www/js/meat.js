@@ -70,12 +70,14 @@ export function inFat(x, y) {
 }
 
 // 근막(실버스킨): 각기 다른 방향의 띠 3개 → 고기를 돌려가며 잘라야 함
-export function createMembranes() {
+export function createMembranes(extra = false) {
   const defs = [
     { from: 0.35, to: 2.55, inset: 15, width: 13 },      // 아랫변 (가로)
     { from: 2.75, to: 3.6, inset: 13, width: 12 },       // 왼쪽 끝 (세로)
     { from: -0.32, to: 0.32, inset: 26, width: 11, wobble: 6 }, // 오른쪽 안쪽 (세로, 곡선)
   ];
+  // 안심: 위쪽 대각선 근막 추가 (더 많이 돌려야 함)
+  if (extra) defs.push({ from: -2.35, to: -1.3, inset: 34, width: 10, wobble: 8 });
   return defs.map((d, k) => {
     const raw = [];
     for (let a = d.from; a <= d.to + 1e-6; a += 0.04) {
@@ -104,9 +106,9 @@ const PAD = 20;
 const BX0 = -135 - PAD, BY0 = -95 - PAD, BW = 270 + PAD * 2, BH = 200 + PAD * 2;
 
 /** 고해상도 텍스처 세트 생성 (scale: mm → px) */
-export function buildSteakTextures(scale) {
-  const tex = { scale };
-  tex.raw = drawRawTexture(scale);
+export function buildSteakTextures(scale, marbling = 1) {
+  const tex = { scale, marbling };
+  tex.raw = drawRawTexture(scale, marbling);
   tex.crust = drawCrustTexture(scale);
   tex.gloss = drawGlossTexture(scale);
   tex.shadow = drawShadowTexture(scale);
@@ -120,7 +122,7 @@ function withLocal(c, scale, fn) {
   return g;
 }
 
-function drawRawTexture(scale) {
+function drawRawTexture(scale, marbling = 1) {
   const c = makeCanvas(BW * scale, BH * scale);
   const R = rng(1337);
   withLocal(c, scale, (g) => {
@@ -172,16 +174,16 @@ function drawRawTexture(scale) {
         }
       }
     };
-    for (let i = 0; i < 34; i++) vein(-120 + R() * 240, -75 + R() * 160, R() * TAU, 6 + Math.floor(R() * 14), 0.35 + Math.pow(R(), 2) * 0.9, 2);
+    for (let i = 0; i < Math.round(34 * marbling); i++) vein(-120 + R() * 240, -75 + R() * 160, R() * TAU, 6 + Math.floor(R() * 14), 0.35 + Math.pow(R(), 2) * 0.9, 2);
     // 지방 덩어리(부드러운 얼룩)
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < Math.round(26 * marbling); i++) {
       const x = -115 + R() * 230, y = -70 + R() * 150, r = 1.5 + R() * 4;
       const gr = g.createRadialGradient(x, y, 0, x, y, r);
       gr.addColorStop(0, `rgba(255,238,232,${0.55 + R() * 0.3})`); gr.addColorStop(0.6, 'rgba(250,210,205,0.25)'); gr.addColorStop(1, 'rgba(250,210,205,0)');
       g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r * (1 + R()), r, R() * 3, 0, TAU); g.fill();
     }
     // 작은 지방 점
-    for (let i = 0; i < 380; i++) {
+    for (let i = 0; i < Math.round(380 * Math.sqrt(marbling)); i++) {
       const x = -130 + R() * 260, y = -90 + R() * 190;
       g.fillStyle = `rgba(255,228,222,${0.15 + R() * 0.45})`;
       g.beginPath(); g.ellipse(x, y, 0.25 + R() * 0.9, 0.2 + R() * 0.5, R() * 3, 0, TAU); g.fill();

@@ -91,7 +91,7 @@ export function computeScore(state) {
   let seS = 0;
   let saltRatio = 0;
   if (se) {
-    const tgt = SEASON_TARGET.salt * (c.saltPref || 1);
+    const tgt = SEASON_TARGET.salt * (c.saltPref || 1) * (state.dish?.saltMul || 1);
     saltRatio = se.salt / tgt;
     const lr = Math.log(Math.max(saltRatio, 0.02));
     seS += 11 * bell(lr, 0.33 / strict);

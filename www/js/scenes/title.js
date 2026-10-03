@@ -1,8 +1,8 @@
 // 타이틀 + 손님 선택
 import { drawTable, drawPlate, drawGarnish, drawSauce } from '../art.js';
 import { drawSlicedSteak, idealCook } from '../dish.js';
-import { CUSTOMERS, isUnlocked } from '../data.js';
-import { motion } from '../motion.js';
+import { shopInfo, won } from '../economy.js';
+import { newBusiness } from '../economy.js';
 
 export class TitleScene {
   constructor(game) { this.game = game; this.cook = idealCook(); this.t = 0; this.steam = []; }
@@ -11,23 +11,26 @@ export class TitleScene {
 
   showMenu() {
     const { ui, save } = this.game;
-    const list = CUSTOMERS.map((c, i) => {
-      const unlocked = isUnlocked(save, i);
-      const best = save.best[c.id];
-      return `<button class="cust" data-act="c${i}" ${unlocked ? '' : 'disabled'}>
-        <span class="face">${unlocked ? c.face : '🔒'}</span>
-        <span class="info"><div class="name">${c.name}</div><div class="desc">${unlocked ? `${c.title} · ${Math.floor(c.time / 60)}분 ${c.time % 60 ? `${c.time % 60}초` : ''}` : '이전 손님에게 60점 이상 받으면 열려요'}</div></span>
-        <span class="best">${best != null ? `최고<br>${best}점` : ''}</span>
-      </button>`;
-    }).join('');
-    const actions = {};
-    CUSTOMERS.forEach((c, i) => { actions[`c${i}`] = () => this.pick(c); });
-    actions.how = () => this.showHowTo();
+    const b = save.biz;
+    const fresh = b.day === 1 && b.totalServed === 0;
     ui.showCard(`
       <h1 class="title">🥩 쿠킹 시뮬레이터</h1>
-      <p class="tagline">손질부터 플레이팅까지, 단 한 접시의 완벽한 스테이크</p>
-      <div class="customers">${list}</div>
-      <div class="row"><button class="btn secondary small" data-act="how">조작 방법</button></div>`, actions, { bottom: true });
+      <p class="tagline">골목 포장마차에서 파인다이닝까지, 한 접시씩 키워가는 스테이크 가게</p>
+      ${fresh ? '' : `<div class="settle"><b>${shopInfo(b).name}</b> · ${b.day}일차<br>자금 <b>${won(b.money)}</b> · 평판 <b>${b.rep.toFixed(0)}</b> · 메달 <b>${b.medals.length}</b></div>`}
+      <div class="row"><button class="btn big" data-act="open">${fresh ? '🏮 가게 열기' : '🏪 영업 계속하기'}</button></div>
+      <div class="row"><button class="btn secondary small" data-act="how">조작 방법</button>${fresh ? '' : '<button class="btn secondary small" data-act="reset">처음부터</button>'}</div>`, {
+      open: () => { ui.hideOverlay(); this.game.toShop(); },
+      how: () => this.showHowTo(),
+      reset: () => this.confirmReset(),
+    }, { bottom: true });
+  }
+
+  confirmReset() {
+    this.game.ui.showCard(`<div class="icon">⚠️</div><h2>가게를 처음부터?</h2><p>자금·평판·메달이 모두 사라져요.</p>
+      <div class="row"><button class="btn secondary" data-act="no">취소</button><button class="btn" data-act="yes">초기화</button></div>`, {
+      no: () => this.showMenu(),
+      yes: () => { this.game.saveBiz(newBusiness()); this.showMenu(); },
+    });
   }
 
   showHowTo() {
@@ -42,21 +45,6 @@ export class TitleScene {
         <li>센서가 없는 기기에서는 화면을 빠르게 문지르거나 위로 휙 쓸어올려도 돼요.</li>
       </ul>
       <div class="row"><button class="btn" data-act="back">알겠어요</button></div>`, { back: () => this.showMenu() });
-  }
-
-  async pick(c) {
-    await this.game.enableMotion();
-    const { ui } = this.game;
-    ui.showCard(`
-      <div class="icon">${c.face}</div>
-      <h2>${c.name}</h2>
-      <div class="bubble">“${c.line}”</div>
-      <p>제한 시간 <b style="color:var(--cream)">${Math.floor(c.time / 60)}분 ${c.time % 60 ? `${c.time % 60}초` : ''}</b> 안에 손질 → 채썰기 → 시즈닝 → 굽기 → 플레이팅을 끝내세요.</p>
-      ${motion.permission === 'denied' ? '<p style="color:var(--bad)">모션 센서 권한이 없어 터치 조작으로 대체돼요.</p>' : ''}
-      <div class="row"><button class="btn secondary" data-act="back">뒤로</button><button class="btn" data-act="go">주문 받기</button></div>`, {
-      back: () => this.showMenu(),
-      go: () => { ui.hideOverlay(); this.game.newRun(c.id); },
-    });
   }
 
   update(dt) {

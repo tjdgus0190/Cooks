@@ -51,7 +51,7 @@ export class SeasonScene {
     const hints = this.game.state.customer.hints;
     this.meters = {};
     for (const t of TOOLS) {
-      const tgt = SEASON_TARGET[t.key] * (t.key === 'salt' ? this.game.state.customer.saltPref : 1);
+      const tgt = SEASON_TARGET[t.key] * (t.key === 'salt' ? this.saltTarget() / SEASON_TARGET.salt : 1);
       const zone = hints ? [(tgt * 0.8) / (tgt * 2), (tgt * 1.2) / (tgt * 2)] : null;
       this.meters[t.key] = { m: ui.addMeter(t.label, { zone }), max: tgt * 2 };
     }
@@ -60,6 +60,8 @@ export class SeasonScene {
   }
 
   exit() { this.off?.(); }
+
+  saltTarget() { const st = this.game.state; return SEASON_TARGET.salt * st.customer.saltPref * (st.dish?.saltMul || 1); }
 
   setTool(k) {
     this.tool = k; this.seg?.select(k); sfx.pop();
@@ -165,7 +167,7 @@ export class SeasonScene {
     this.off?.();
     const s = this.amount;
     this.game.state.season = { salt: s.salt, pepper: s.pepper, oil: s.oil, coverage: this.coverage(), grains: this.grains, oilDrops: this.oilDrops };
-    const tgt = SEASON_TARGET.salt * this.game.state.customer.saltPref;
+    const tgt = this.saltTarget();
     const r = s.salt / tgt;
     this.game.ui.toast(r < 0.5 ? '간이 너무 약해요…' : r > 1.7 ? '소금 폭탄!' : '좋은 간이에요', { bad: r < 0.5 || r > 1.7 });
     setTimeout(() => this.game.nextStage(), 900);

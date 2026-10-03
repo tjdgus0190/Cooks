@@ -33,7 +33,7 @@ export function drawWholeSteak(g, tex, cook) {
 export function drawSlicedSteak(g, tex, cook, { slices = 7 } = {}) {
   const x0 = -118, x1 = 118;
   const w = (x1 - x0) / slices;
-  const T = STEAK.thick * 1.25;
+  const T = (cook.thick || STEAK.thick) * 1.25;
   const tb = topBrown(cook), bb = bottomBrown(cook);
   // 그림자
   g.save();

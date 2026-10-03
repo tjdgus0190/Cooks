@@ -5,7 +5,7 @@ import { drawDish, PLATE_R } from './plate.js';
 import { computeScore } from '../score.js';
 import { sfx, haptic } from '../audio.js';
 import { clamp } from '../geom.js';
-import { CUSTOMERS } from '../data.js';
+import * as E from '../economy.js';
 
 export class ResultScene {
   constructor(game) {
@@ -21,7 +21,18 @@ export class ResultScene {
 
   enter() {
     const st = this.game.state;
-    this.game.saveBest(st.customer.id, this.res.total);
+    this.game.saveBest(st.dish?.key || 'strip', this.res.total);
+    // 영업/대회 정산 (한 번만, 즉시 저장)
+    const biz = this.game.save.biz;
+    if (st.mode === 'contest' && st.contest) {
+      const rivals = E.rivalScores(st.contest);
+      const out = E.settleContest(biz, st.contest, this.res.total, rivals);
+      this.econ = { kind: 'contest', rivals, ...out };
+    } else {
+      const out = E.settleDay(biz, st.dish?.key || 'strip', this.res.total);
+      this.econ = { kind: 'service', ...out };
+    }
+    this.game.saveBiz(this.econ.biz);
     if (!this.hasDish) { this.t = 5.5; }
   }
 
@@ -46,26 +57,42 @@ export class ResultScene {
 
   showCard() {
     const r = this.res, st = this.game.state, c = st.customer;
-    const idx = CUSTOMERS.indexOf(c);
-    const next = CUSTOMERS[idx + 1];
-    const unlockedNext = next && r.total >= 60;
     const rows = r.parts.map((p) => `<div class="score-row"><span>${p.label}</span><span class="bar"><span class="fill" data-w="${(p.score / p.max) * 100}"></span></span><span class="num">${Math.round(p.score)}/${p.max}</span></div>`).join('');
     const notes = this.buildNotes();
+    const ec = this.econ;
+    let econHtml = '', buttons = '';
+    if (ec.kind === 'service') {
+      const rp = ec.report;
+      const pe = Math.round(E.priceEffect(rp.price, rp.fair));
+      const verdict = { expensive: '😟 “맛은 있는데 가격이 좀…” 손님들이 비싸다고 느꼈어요. 단가를 내리거나 평판을 더 쌓아보세요.', cheap: '🤑 “이 가격에 이 맛이?!” 너무 싸게 팔고 있어요. 단가를 올려도 괜찮아요.', fair: '🙂 가격이 적당하다는 반응이에요.' }[rp.priceVerdict];
+      econHtml = `<div class="settle">
+        <b>오늘의 정산</b> · ${this.game.save.biz.day - 1}일차<br>
+        고객 만족도 <b>${rp.sat}</b> <span style="color:var(--muted)">(요리 ${r.total} ${pe >= 0 ? '+' : '−'} 가격 ${Math.abs(pe)})</span><br>
+        방문 손님 <b>${rp.vis}명</b>${rp.fameMult > 1 ? ` <span class="up">🔥 대회 효과 ×${rp.fameMult.toFixed(2)}</span>` : ''}<br>
+        매출 ${E.won(rp.revenue)}${rp.tipRate ? ` <span class="up">(팁 +${rp.tipRate * 100}%)</span>` : ''} − 재료비 ${E.won(rp.cost)} = <b class="${rp.profit >= 0 ? 'up' : 'down'}">${E.won(rp.profit)}</b><br>
+        평판 <b>${ec.biz.rep.toFixed(0)}</b> <span class="${rp.repDelta >= 0 ? 'up' : 'down'}">(${rp.repDelta >= 0 ? '▲' : '▼'}${Math.abs(rp.repDelta).toFixed(1)})</span>
+      </div><p style="font-size:13.5px">${verdict}</p>`;
+      buttons = `<button class="btn secondary" data-act="shop">가게로</button><button class="btn" data-act="again">다음 영업 ▶</button>`;
+    } else {
+      const rp = ec.report;
+      const entries = [...ec.rivals.map((sc, i) => ({ name: `참가자 ${String.fromCharCode(65 + i)}`, sc })), { name: '나', sc: r.total, me: true }]
+        .sort((a, b) => b.sc - a.sc || (a.me ? -1 : 1));
+      const rank = entries.map((e, i) => `<div class="${e.me ? 'me' : ''}"><span>${['🥇', '🥈', '🥉'][i] || `${i + 1}위`} ${e.name}</span><span>${e.sc}점</span></div>`).join('');
+      econHtml = `<div class="rank">${rank}</div><div class="settle">${rp.medal
+        ? `<b>${rp.place}위 입상!</b> 상금 <b class="up">${E.won(rp.prize)}</b><br>🔥 소문이 퍼져 5일간 손님 <b>×${rp.fameMult}</b> · 평판 <span class="up">+${rp.repGain}</span>`
+        : `<b>${rp.place}위</b> — 아쉽게 입상하지 못했어요. 참가비 ${E.won(rp.fee)} 손실 · 평판 <span class="down">${rp.repGain}</span>`}</div>`;
+      buttons = `<button class="btn" data-act="shop">가게로</button>`;
+    }
     const card = this.game.ui.showCard(`
       <div class="stars">${'★'.repeat(r.stars)}${'☆'.repeat(5 - r.stars)}</div>
       <div class="total">${r.total}<span style="font-size:18px;color:var(--muted)"> 점</span></div>
       <div class="bubble">${c.face} “${r.comments[0]}”${r.comments.slice(1).map((x) => `<br>· ${x}`).join('')}</div>
-      ${unlockedNext ? `<p class="tagline">🔓 새 손님 '${next.name}'이(가) 찾아왔어요!</p>` : ''}
-      <div class="row">
-        <button class="btn secondary" data-act="menu">손님 목록</button>
-        <button class="btn" data-act="retry">다시 도전</button>
-        ${unlockedNext ? '<button class="btn" data-act="next">다음 손님 ▶</button>' : ''}
-      </div>
+      ${econHtml}
+      <div class="row">${buttons}</div>
       <div class="score-rows">${rows}</div>
       <div class="notes">${notes}</div>`, {
-      menu: () => this.game.toTitle(),
-      retry: () => { this.game.ui.hideOverlay(); this.game.newRun(c.id); },
-      next: () => { this.game.ui.hideOverlay(); this.game.newRun(next.id); },
+      shop: () => this.game.toShop(),
+      again: () => { this.game.toShop(); this.game.scene.chooseDish?.(); },
     }, { bottom: true });
     requestAnimationFrame(() => card.querySelectorAll('.fill').forEach((f) => { f.style.width = `${f.dataset.w}%`; }));
   }

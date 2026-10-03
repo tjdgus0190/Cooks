@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { computeScore, plateScore, crustQuality } from '../www/js/score.js';
-import { CUSTOMERS } from '../www/js/data.js';
+const CUSTOMERS = [
+  { id: 'a', order: 'medium-rare', saltPref: 1, strict: 1, hints: true },
+  { id: 'b', order: 'medium', saltPref: 1.35, strict: 1.15, hints: false },
+];
 
 const base = () => ({
   customer: CUSTOMERS[0], timeLeft: 100, timeTotal: 300, timedOut: false,
@@ -68,6 +71,14 @@ test('빈 접시/한쪽 쏠림 플레이팅은 낮은 점수', () => {
   const empty = plateScore({ ...p, items: [], sauce: [], steak: { x: 110, y: 0, rot: 0 } }).score;
   assert.ok(good > 10, `good ${good}`);
   assert.ok(empty < 3, `empty ${empty}`);
+});
+
+test('요리별 소금 기준(와규는 덜 짜게) 반영', () => {
+  const s = base(); s.season.salt = 2.4 * 0.7;
+  const plain = computeScore(s).parts.find((p) => p.key === 'season').score;
+  s.dish = { key: 'wagyu', saltMul: 0.7 };
+  const wagyu = computeScore(s).parts.find((p) => p.key === 'season').score;
+  assert.ok(wagyu > plain);
 });
 
 test('일부 단계 데이터가 없어도 오류 없이 계산', () => {

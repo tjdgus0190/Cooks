@@ -9,7 +9,7 @@ const MAX_SLOPE = Math.tan((58 * Math.PI) / 180); // 칼이 들어가는 최대 
 export class TrimScene {
   constructor(game) {
     this.game = game;
-    this.mems = createMembranes();
+    this.mems = createMembranes(!!game.state.dish?.extraMembrane);
     this.scars = [];
     this.curScar = null;
     this.damage = 0;      // 살코기를 벤 길이(mm)

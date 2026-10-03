@@ -2,7 +2,9 @@
 import { initAudio, sfx, setSizzle } from './audio.js';
 import { startMotion, requestMotionPermission, decayMotion, motion } from './motion.js';
 import { buildSteakTextures } from './meat.js';
-import { CUSTOMERS, loadSave, saveBest } from './data.js';
+import { loadSave, saveBest, writeSave } from './data.js';
+import { dishByKey } from './economy.js';
+import { ShopScene } from './scenes/shop.js';
 import * as ui from './ui.js';
 import { TitleScene } from './scenes/title.js';
 import { TrimScene } from './scenes/trim.js';
@@ -39,8 +41,7 @@ function resize() {
   game.W = W; game.H = H; game.dpr = dpr;
   game.S = Math.min(W / 400, H / 780);
   canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
-  const want = game.S * dpr * 1.6;
-  if (!game.tex || Math.abs(game.tex.scale - want) > 0.3) game.tex = buildSteakTextures(want);
+  game.useTex(game.tex?.marbling ?? 1);
   game.scene?.resize?.();
 }
 window.addEventListener('resize', resize);
@@ -53,9 +54,22 @@ game.setScene = function (SceneClass, ...args) {
   game.scene.enter?.();
 };
 
-game.newRun = function (customerId) {
-  const c = CUSTOMERS.find((x) => x.id === customerId) || CUSTOMERS[0];
+/** 요리별 마블링 텍스처 (해상도·마블링이 바뀔 때만 다시 생성) */
+const texCache = new Map();
+game.useTex = function (marbling = 1) {
+  const want = game.S * game.dpr * 1.6;
+  const key = `${marbling}|${Math.round(want * 4)}`;
+  if (!texCache.has(key)) { if (texCache.size > 4) texCache.clear(); texCache.set(key, buildSteakTextures(want, marbling)); }
+  game.tex = texCache.get(key);
+};
+
+/** 주문 시작: mode = 'service'(영업) | 'contest'(대회) */
+game.startOrder = function ({ mode = 'service', dishKey = 'strip', customer, contest = null }) {
+  const c = customer;
+  const dish = dishByKey(dishKey);
+  game.useTex(dish.marbling);
   game.state = {
+    mode, dish, contest,
     customer: c,
     timeLeft: c.time, timeTotal: c.time,
     stageIdx: 0,
@@ -64,7 +78,7 @@ game.newRun = function (customerId) {
   };
   game.timer.warned = false;
   ui.showHud(true);
-  ui.setOrder(`${c.face} ${c.name} · ${orderName(c.order)}`);
+  ui.setOrder(`${mode === 'contest' ? '🏆' : c.face} ${dish.name} · ${orderName(c.order)}`);
   game.goStage(0);
 };
 
@@ -93,6 +107,14 @@ game.finish = function () {
   ui.showHud(false);
   game.setScene(ResultScene);
 };
+
+game.toShop = function () {
+  game.timer.running = false;
+  ui.showHud(false);
+  ui.hideOverlay();
+  game.setScene(ShopScene);
+};
+game.saveBiz = (biz) => { game.save = writeSave({ ...game.save, biz }); };
 
 game.toTitle = function () {
   game.timer.running = false;

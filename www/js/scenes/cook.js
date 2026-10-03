@@ -12,7 +12,8 @@ const HEATS = [{ key: 'low', label: '약불' }, { key: 'mid', label: '중불' },
 export class CookScene {
   constructor(game) {
     this.game = game;
-    this.sim = createSteak({ thicknessMm: 28, startTemp: 16 });
+    this.thick = game.state.dish?.thick || 28;
+    this.sim = createSteak({ thicknessMm: this.thick, startTemp: 16 });
     this.pan = { temp: 222 };
     this.heat = 'high';
     this.active = false;
@@ -165,6 +166,7 @@ export class CookScene {
     if (pretty === s.down) Tmax = Tmax.reverse();
     // 내부 배열 기준: index 0 = 아랫면, 마지막 = 윗면(보여주는 면)
     this.game.state.cook = {
+      thick: this.thick,
       Tmax: Float64Array.from(Tmax),
       core: coreMax(rested),
       coreAtRemoval: coreTemp(s),
