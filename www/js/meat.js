@@ -339,7 +339,7 @@ export function drawSteakTop(g, tex, opts = {}) {
     g.globalAlpha = clamp(brown * 1.1, 0, 1) * 0.9;
     g.drawImage(tex.crust, BX0, BY0, BW, BH);
     // 구운 면의 따뜻한 볼륨감 (가운데가 볼록하게 빛남)
-    g.globalAlpha = clamp(brown, 0, 1) * 0.28;
+    g.globalAlpha = clamp(brown, 0, 1) * clamp(1.7 - brown, 0, 1) * 0.28; // 탈수록 윤기·볼륨 사라짐
     const vol = g.createRadialGradient(-30, -25, 5, 0, 0, 140);
     vol.addColorStop(0, 'rgba(255,150,70,0.55)'); vol.addColorStop(0.5, 'rgba(120,40,10,0.15)'); vol.addColorStop(1, 'rgba(20,5,0,0.9)');
     g.fillStyle = vol; g.fillRect(BX0, BY0, BW, BH);
@@ -347,13 +347,15 @@ export function drawSteakTop(g, tex, opts = {}) {
       // 탄 부분
       g.globalAlpha = clamp((brown - 1.4) * 0.8, 0, 0.9);
       g.drawImage(tex.crust, BX0, BY0, BW, BH);
+      g.globalAlpha = clamp((brown - 1.6) * 0.5, 0, 0.75);
+      g.fillStyle = '#120a06'; g.fillRect(BX0, BY0, BW, BH);
     }
     g.restore();
   }
   if (opts.mems) drawMembranes(g, opts.mems, brown);
   if (opts.grains && opts.grains.length) drawGrains(g, opts.grains, brown);
   // 윤기 (기름/육즙)
-  const gloss = clamp(0.35 + (opts.oil || 0) * 0.06, 0.35, 1) * (brown > 0.05 ? 0.9 : 0.7);
+  const gloss = clamp(0.35 + (opts.oil || 0) * 0.06, 0.35, 1) * (brown > 0.05 ? 0.9 : 0.7) * clamp(2.2 - brown, 0.25, 1);
   g.save();
   g.globalCompositeOperation = 'lighter';
   g.globalAlpha = gloss * (opts.glossMul ?? 1);

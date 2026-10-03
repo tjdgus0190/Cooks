@@ -6,12 +6,12 @@ const srv = await startServer(8455);
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2, hasTouch: true });
 const errs = []; page.on('pageerror', (e) => errs.push(String(e))); page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
-await page.goto('http://localhost:8455/');
+await page.goto('http://localhost:8455/' + (process.argv[3] || ''));
 await page.waitForTimeout(400);
 await page.evaluate(async () => {
   const { idealCook } = await import('./js/dish.js');
   const g = window.__game; g.newRun('minjun');
-  const c = idealCook();
+  const c = idealCook(); if (location.hash === '#burnt') c.brown = [3.1, 2.6];
   Object.assign(g.state, { trim: { removed: 0.9, damage: 10, mems: null, scars: [] }, cabbage: { fineness: 0.8, pieces: 30 }, season: { salt: 2.2, pepper: 0.7, oil: 9, coverage: 0.8, grains: [], oilDrops: [] }, cook: { ...c, core: 56, flips: 6, goodFlips: 6, folds: 0, foldTime: 0, grains: [], pepperOnly: [], scars: [] } });
   g.goStage(4);
   document.querySelector('[data-act=go]').click();

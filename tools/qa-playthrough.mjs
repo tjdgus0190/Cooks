@@ -24,7 +24,15 @@ page.on('pageerror', (e) => errors.push(String(e.stack || e)));
 const sleep = (ms) => page.waitForTimeout(ms);
 let shotN = 0;
 async function shot(name) { console.log('  📸', name); await page.screenshot({ path: path.join(outDir, `${String(++shotN).padStart(2, '0')}-${name}.png`) }); }
-async function clickText(text) { await page.locator('button', { hasText: text }).first().click({ timeout: 5000 }); }
+async function clickText(text) {
+  try { await page.locator('button', { hasText: text }).first().click({ timeout: 8000 }); }
+  catch (e) {
+    await page.screenshot({ path: path.join(outDir, 'FAIL.png') });
+    const st = await page.evaluate(() => ({ stage: window.__game.state?.stageIdx, scene: window.__game.scene?.constructor.name, overlay: document.getElementById('overlay').innerText.slice(0, 200) }));
+    console.error('클릭 실패:', text, JSON.stringify(st));
+    throw e;
+  }
+}
 const stageIdx = () => page.evaluate(() => window.__game.state?.stageIdx);
 async function drag(points, stepMs = 8) {
   await page.mouse.move(points[0][0], points[0][1]);
@@ -67,6 +75,7 @@ async function trimMembrane(idx) {
   const pts = await G(`(() => { const s = window.__game.scene; const m = s.mems[${idx}]; return m.pts.map(p => s.toScreen(p[0], p[1])); })()`);
   const wobble = style === 'sloppy' ? 9 : 0;
   for (let i = 0; i + 1 < pts.length; i += 6) {
+    if (await G('window.__game.scene.done || !(window.__game.scene.mems)')) return; // 자동 완료됨
     const seg = pts.slice(i, i + 8).map(([x, y]) => [x + (Math.random() - 0.5) * wobble, y + (Math.random() - 0.5) * wobble]);
     const dx = Math.abs(seg[seg.length - 1][0] - seg[0][0]), dy = Math.abs(seg[seg.length - 1][1] - seg[0][1]);
     if (dy > dx * 1.4) continue; // 너무 세로인 구간은 회전 후 처리
@@ -93,7 +102,9 @@ if (trimInfo.stage === 0 && !(await G('window.__game.scene.done'))) await clickT
 await sleep(1300);
 
 // ---------- 2. 양배추 ----------
-await clickText('시작!');
+await page.waitForFunction(() => window.__game.scene?.constructor.name === 'CabbageScene', null, { timeout: 10000 });
+await sleep(300);
+if (await G(`document.getElementById('overlay').classList.contains('show')`)) await clickText('시작!');
 await sleep(300);
 const cuts = style === 'sloppy' ? 6 : 16;
 for (let i = 0; i < cuts; i++) {
