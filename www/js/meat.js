@@ -1,6 +1,7 @@
 // 스테이크 그래픽: 형태, 마블링 텍스처, 근막, 크러스트, 단면
-import { TAU, rng, clamp, resample, pointInPoly, lerp } from './geom.js';
+import { TAU, rng, clamp, resample, pointInPoly, lerp, smoothstep as smooth } from './geom.js';
 import { meatColorAt, crustColor } from './sim.js';
+import { realRaw, realCrust, realCrossSection } from './steakreal.js';
 
 // 단위: mm. 채끝(스트립로인) 형태 — 위쪽 가장자리에 지방층
 export const STEAK = { w: 250, h: 170, thick: 28 };
@@ -16,8 +17,10 @@ export function steakShape() {
     const sq = 3.2;
     const rx = Math.sign(c) * Math.pow(Math.abs(c), 2 / sq);
     const ry = Math.sign(s) * Math.pow(Math.abs(s), 2 / sq);
-    let x = rx * 122 * (1 + 0.05 * Math.sin(t * 2 + 0.6));
-    let y = ry * 80 * (1 + 0.07 * Math.cos(t + 0.3)) ;
+    // 자연스러운 불규칙 윤곽
+    const wob = 1 + 0.012 * Math.sin(t * 7 + 1.3) + 0.007 * Math.sin(t * 13 + 0.4) + 0.004 * Math.sin(t * 23);
+    let x = rx * 122 * (1 + 0.05 * Math.sin(t * 2 + 0.6)) * wob;
+    let y = ry * 80 * (1 + 0.07 * Math.cos(t + 0.3)) * wob;
     y *= 1 - 0.13 * (x / 122); // 오른쪽이 좁아짐
     if (y < 0) y *= 1 + 0.04 * Math.sin(x / 30);
     pts.push([x, y + 4]);
@@ -107,9 +110,10 @@ const BX0 = -135 - PAD, BY0 = -95 - PAD, BW = 270 + PAD * 2, BH = 200 + PAD * 2;
 
 /** 고해상도 텍스처 세트 생성 (scale: mm → px) */
 export function buildSteakTextures(scale, marbling = 1) {
-  const tex = { scale, marbling };
-  tex.raw = drawRawTexture(scale, marbling);
-  tex.crust = drawCrustTexture(scale);
+  const tex = { scale, marbling, real: true };
+  const env = { shapePath: SHAPE_PATH, fatLine: FAT_LINE, fatW: FAT_W, bx0: BX0, by0: BY0, bw: BW, bh: BH, scale };
+  tex.raw = realRaw(env, marbling);
+  tex.crust = realCrust(env);
   tex.gloss = drawGlossTexture(scale);
   tex.shadow = drawShadowTexture(scale);
   return tex;
@@ -328,36 +332,24 @@ export function drawSteakTop(g, tex, opts = {}) {
   g.drawImage(tex.raw, BX0, BY0, BW, BH);
   if (opts.scars && opts.scars.length) drawScars(g, opts.scars);
   if (brown > 0.01) {
-    const cc = crustColor(brown);
     g.save();
     g.clip(SHAPE_PATH);
-    g.globalAlpha = cc.a;
-    g.fillStyle = `rgb(${cc.rgb.join(',')})`;
-    g.fillRect(BX0, BY0, BW, BH);
-    // 지방층은 황금빛으로 투명하게
-    g.globalAlpha = Math.min(1, cc.a) * 0.85;
-    const fat = crustColor(brown * 0.7).rgb.map((v, i) => Math.min(255, v + [70, 60, 30][i]));
-    strokeLine(g, FAT_LINE, FAT_W * 2, `rgb(${fat.join(',')})`);
-    g.globalAlpha = clamp(brown * 1.1, 0, 1) * 0.9;
+    // 1) 익기 시작하면 표면이 회갈색으로 변함
+    const grey = smooth(0.02, 0.3, brown) * (1 - smooth(0.45, 0.95, brown));
+    if (grey > 0) { g.globalAlpha = grey * 0.75; g.fillStyle = 'rgb(150,104,88)'; g.fillRect(BX0, BY0, BW, BH); }
+    // 2) 마이야르 크러스트 (실사 텍스처)
+    g.globalAlpha = smooth(0.12, 0.9, brown);
     g.drawImage(tex.crust, BX0, BY0, BW, BH);
-    // 구운 면의 따뜻한 볼륨감 (가운데가 볼록하게 빛남)
-    g.globalAlpha = clamp(brown, 0, 1) * clamp(1.7 - brown, 0, 1) * 0.28; // 탈수록 윤기·볼륨 사라짐
-    const vol = g.createRadialGradient(-30, -25, 5, 0, 0, 140);
-    vol.addColorStop(0, 'rgba(255,150,70,0.55)'); vol.addColorStop(0.5, 'rgba(120,40,10,0.15)'); vol.addColorStop(1, 'rgba(20,5,0,0.9)');
-    g.fillStyle = vol; g.fillRect(BX0, BY0, BW, BH);
-    if (brown > 1.4) {
-      // 탄 부분
-      g.globalAlpha = clamp((brown - 1.4) * 0.8, 0, 0.9);
-      g.drawImage(tex.crust, BX0, BY0, BW, BH);
-      g.globalAlpha = clamp((brown - 1.6) * 0.5, 0, 0.75);
-      g.fillStyle = '#120a06'; g.fillRect(BX0, BY0, BW, BH);
-    }
+    // 3) 덜 갈변: 밝게 / 과하게: 어둡게 / 탐: 숯
+    if (brown < 0.85) { g.globalCompositeOperation = 'screen'; g.globalAlpha = (0.85 - brown) * 0.35; g.fillStyle = 'rgb(120,90,60)'; g.fillRect(BX0, BY0, BW, BH); g.globalCompositeOperation = 'source-over'; }
+    if (brown > 1.25) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = clamp((brown - 1.25) * 0.9, 0, 0.85); g.fillStyle = 'rgb(70,40,25)'; g.fillRect(BX0, BY0, BW, BH); g.globalCompositeOperation = 'source-over'; }
+    if (brown > 1.7) { g.globalAlpha = clamp((brown - 1.7) * 0.6, 0, 0.7); g.fillStyle = '#0e0806'; g.fillRect(BX0, BY0, BW, BH); }
     g.restore();
   }
   if (opts.mems) drawMembranes(g, opts.mems, brown);
   if (opts.grains && opts.grains.length) drawGrains(g, opts.grains, brown);
   // 윤기 (기름/육즙)
-  const gloss = clamp(0.35 + (opts.oil || 0) * 0.06, 0.35, 1) * (brown > 0.05 ? 0.9 : 0.7) * clamp(2.2 - brown, 0.25, 1);
+  const gloss = clamp(0.15 + (opts.oil || 0) * 0.04, 0.15, 0.6) * (brown > 0.05 ? 0.8 : 0.5) * clamp(2.2 - brown, 0.25, 1);
   g.save();
   g.globalCompositeOperation = 'lighter';
   g.globalAlpha = gloss * (opts.glossMul ?? 1);
@@ -488,6 +480,7 @@ function drawOilDrops(g, drops, brown) {
 export function insideSteak(x, y) { return pointInPoly(x, y, SHAPE); }
 
 /** 단면 띠(슬라이스 한 조각의 잘린 면) 그리기 — 길이 L, 두께 T (로컬 원점: 왼쪽 위) */
+const xsCache = new Map();
 export function drawCrossSection(g, L, T, Tmax, brownTop, brownBottom, opts = {}) {
   const n = Tmax.length;
   const r = Math.min(T * 0.45, 10);
@@ -496,50 +489,38 @@ export function drawCrossSection(g, L, T, Tmax, brownTop, brownBottom, opts = {}
   path.quadraticCurveTo(L, 0, L, r);
   path.lineTo(L, T - r); path.quadraticCurveTo(L, T, L - r * 0.6, T);
   path.lineTo(r, T); path.quadraticCurveTo(0, T, 0, T - r); path.lineTo(0, r); path.quadraticCurveTo(0, 0, r, 0);
+  // 실사 단면 텍스처 (요리 결과마다 캐시)
+  const key = `${Math.round(L)}|${Math.round(T)}|${Array.from(Tmax).map((v) => Math.round(v)).join(',')}|${brownTop.toFixed(2)}|${brownBottom.toFixed(2)}|${opts.seed || 0}`;
+  let tx = xsCache.get(key);
+  if (!tx) {
+    const colorAt = (v) => {
+      const f = v * (n - 1), i = Math.min(n - 2, Math.floor(f)), k = f - i;
+      const t = Tmax[n - 1 - i] * (1 - k) + Tmax[n - 2 - i] * k;
+      return meatColorAt(t);
+    };
+    const ct = crustColor(brownTop), cb = crustColor(brownBottom);
+    tx = realCrossSection(L, T, colorAt,
+      { rgb: ct.rgb, th: 0.8 + clamp(brownTop, 0, 2) * 1.4 },
+      { rgb: cb.rgb, th: 0.8 + clamp(brownBottom, 0, 2) * 1.4 },
+      { seed: opts.seed || 3, px: 5 });
+    if (xsCache.size > 40) xsCache.clear();
+    xsCache.set(key, tx);
+  }
   g.save();
   g.clip(path);
-  // 세로 방향 온도 분포 → 그라데이션 (0=위)
-  const gr = g.createLinearGradient(0, 0, 0, T);
-  for (let i = 0; i < n; i++) {
-    const rgb = meatColorAt(Tmax[n - 1 - i]);
-    gr.addColorStop(i / (n - 1), `rgb(${rgb.join(',')})`);
-  }
-  g.fillStyle = gr; g.fillRect(0, 0, L, T);
-  // 가로 결/육즙 광택
-  const R = rng(opts.seed || 7);
-  for (let i = 0; i < L / 2.2; i++) {
-    const x = R() * L, y = T * 0.15 + R() * T * 0.7;
-    g.strokeStyle = R() < 0.5 ? 'rgba(120,10,20,0.18)' : 'rgba(255,190,190,0.14)';
-    g.lineWidth = 0.4 + R() * 0.6;
-    g.beginPath(); g.moveTo(x, y); g.lineTo(x + 3 + R() * 6, y + (R() - 0.5)); g.stroke();
-  }
-  // 마블링 점
-  for (let i = 0; i < L / 6; i++) {
-    g.fillStyle = `rgba(255,236,226,${0.25 + R() * 0.4})`;
-    g.beginPath(); g.ellipse(R() * L, T * 0.2 + R() * T * 0.6, 0.5 + R() * 1.6, 0.3 + R() * 0.6, 0, 0, TAU); g.fill();
-  }
-  // 위/아래 크러스트
-  const ct = crustColor(brownTop), cb = crustColor(brownBottom);
-  const tt = 1.2 + clamp(brownTop, 0, 2) * 1.6, tb = 1.2 + clamp(brownBottom, 0, 2) * 1.6;
-  let cg = g.createLinearGradient(0, 0, 0, tt + 2);
-  cg.addColorStop(0, `rgba(${ct.rgb.join(',')},1)`); cg.addColorStop(1, `rgba(${ct.rgb.join(',')},0)`);
-  g.fillStyle = cg; g.fillRect(0, 0, L, tt + 2);
-  cg = g.createLinearGradient(0, T, 0, T - tb - 2);
-  cg.addColorStop(0, `rgba(${cb.rgb.join(',')},1)`); cg.addColorStop(1, `rgba(${cb.rgb.join(',')},0)`);
-  g.fillStyle = cg; g.fillRect(0, T - tb - 2, L, tb + 2);
-  // 지방 끝부분
+  g.drawImage(tx, 0, 0, L, T);
   if (opts.fatEnd) {
     const fg = g.createLinearGradient(0, 0, 13, 0);
     fg.addColorStop(0, '#d9a868'); fg.addColorStop(0.25, '#f2dcb8'); fg.addColorStop(1, 'rgba(242,220,184,0)');
     g.fillStyle = fg; g.fillRect(0, 0, 14, T);
   }
-  // 육즙 하이라이트
+  // 육즙 맺힌 윤기
   const hl = g.createLinearGradient(0, 0, 0, T);
-  hl.addColorStop(0, 'rgba(255,255,255,0)'); hl.addColorStop(0.3, 'rgba(255,255,255,0.16)'); hl.addColorStop(0.45, 'rgba(255,255,255,0)');
+  hl.addColorStop(0, 'rgba(255,255,255,0)'); hl.addColorStop(0.35, 'rgba(255,240,235,0.12)'); hl.addColorStop(0.5, 'rgba(255,255,255,0)');
   g.fillStyle = hl; g.fillRect(0, 0, L, T);
   g.restore();
   g.save();
-  g.strokeStyle = 'rgba(40,12,4,0.5)'; g.lineWidth = 0.8; g.stroke(path);
+  g.strokeStyle = 'rgba(40,12,4,0.45)'; g.lineWidth = 0.6; g.stroke(path);
   g.restore();
 }
 
