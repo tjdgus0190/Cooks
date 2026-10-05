@@ -1,0 +1,31 @@
+// 개발용: 스테이크 외 음식 실사 렌더 확인 (파스타 3종·감바스·새우·랍스터·가니쉬)
+import { chromium } from 'playwright';
+import { startServer } from '../serve.mjs';
+const srv = await startServer(8514);
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const page = await browser.newPage({ viewport: { width: 600, height: 600 } });
+const errs = []; page.on('pageerror', (e) => errs.push(String(e.stack || e)));
+await page.goto('http://localhost:8514/icon.html'); await page.waitForFunction(() => window.ready);
+const url = await page.evaluate(async () => {
+  await (await import('./js/photos.js')).loadPhotos();
+  const F = await import('./js/food.js');
+  const A = await import('./js/art.js');
+  const c = document.createElement('canvas'); c.width = 1500; c.height = 1100; const g = c.getContext('2d');
+  g.fillStyle = '#f4f1ec'; g.fillRect(0, 0, 1500, 1100);
+  const at = (x, y, s, fn) => { g.save(); g.translate(x, y); g.scale(s, s); fn(); g.restore(); };
+  at(170, 170, 3, () => F.drawPastaNest(g, { sauce: 'aglio', toppings: { garlic: 0.8, chili: true, parsley: true } }));
+  at(500, 170, 3, () => F.drawPastaNest(g, { sauce: 'carbonara', toppings: { guanciale: 0.9, pepper: 1, cheese: true } }));
+  at(830, 170, 3, () => F.drawPastaNest(g, { sauce: 'tomato', toppings: { shrimp: 4, shrimpCook: 1, tomato: 4, parsley: true } }));
+  at(1220, 190, 2, () => F.drawCazuela(g, { parsley: true }));
+  at(150, 520, 4, () => F.drawShrimp(g, { cook: 0, vein: F.shrimpVein() }));
+  at(420, 520, 4, () => F.drawShrimp(g, { cook: 1 }));
+  at(680, 560, 2.6, () => F.drawLobster(g, { cook: 0 }));
+  at(900, 560, 2.6, () => F.drawLobster(g, { cook: 1, split: 1, glaze: 1 }));
+  at(1120, 560, 2.6, () => F.drawLobster(g, { cook: 1, split: 1, sauce: true, cheese: 0.9 }));
+  at(1340, 560, 2.2, () => F.drawCazuela(g, { parsley: false, shrimpCook: 0.4 }));
+  ['tomato', 'asparagus', 'rosemary', 'garlic', 'mushroom', 'butter', 'baguette', 'lemon', 'parsley'].forEach((k, i) => at(110 + i * 160, 950, 3.4, () => A.drawGarnish(g, k)));
+  return c.toDataURL('image/jpeg', 0.9);
+});
+(await import('node:fs')).writeFileSync('/tmp/claude-0/shots/food.jpg', Buffer.from(url.split(',')[1], 'base64'));
+console.log(errs.join('\n') || 'ok');
+await browser.close(); srv.close();

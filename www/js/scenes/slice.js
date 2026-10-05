@@ -5,6 +5,20 @@ import { sfx, haptic } from '../audio.js';
 import { TAU, rng, splitPolyByPath, polyArea, polyCentroid, polyMinWidth, polyBounds, clamp } from '../geom.js';
 import { PREP } from '../recipes.js';
 import * as F from '../floor.js';
+import { PHOTOS } from '../photos.js';
+
+/** 다각형 영역에 사진을 경계 상자(+여유)에 맞춰 입힘 — 사진이 없으면 false */
+function photoPoly(g, p, key, { pad = 1.06, rot = 0 } = {}) {
+  const im = PHOTOS[key];
+  if (!im) return false;
+  const b = polyBounds(p), cx = b.x0 + b.w / 2, cy = b.y0 + b.h / 2;
+  g.save(); g.beginPath(); p.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.clip();
+  g.translate(cx, cy); g.rotate(rot);
+  const w = (rot ? b.h : b.w) * pad, h = (rot ? b.w : b.h) * pad;
+  g.drawImage(im, -w / 2, -h / 2, w, h);
+  g.restore();
+  return true;
+}
 
 const ellipse = (cx, cy, rx, ry, n = 28, wob = 0, seed = 1) => {
   const R = rng(seed);
@@ -42,6 +56,10 @@ export const SUBJECTS = {
   garlic: {
     scale: 2.4, items: () => [[-40, -20, 0.3], [0, -24, -0.2], [40, -18, 0.15], [-30, 24, -0.4], [12, 26, 0.5], [46, 28, -0.1]].map(([x, y, r]) => teardrop(x, y, 17, r)),
     paint(g, items) {
+      if (PHOTOS.garlicClove) {
+        items.forEach((p, i) => { const [cx, cy] = polyCentroid(p); const rot = [0.3, -0.2, 0.15, -0.4, 0.5, -0.1][i] || 0; photoPoly(g, p, 'garlicClove', { pad: 1.5, rot: rot + Math.PI / 2 }); strokePoly(g, p, 'rgba(170,130,90,0.35)', 0.6); });
+        return;
+      }
       items.forEach((p, i) => {
         const [cx, cy] = polyCentroid(p);
         g.save(); fillPoly(g, p, '#f6f0dc');
@@ -61,6 +79,7 @@ export const SUBJECTS = {
   tomato: {
     scale: 2.2, items: () => [[-50, -26], [-17, -30], [17, -26], [50, -30], [-50, 24], [-17, 28], [17, 24], [50, 28]].map(([x, y], i) => ellipse(x, y, 13, 13, 26, 0.04, i + 3)),
     paint(g, items) {
+      if (PHOTOS.tomatoWhole) { items.forEach((p) => photoPoly(g, p, 'tomatoWhole', { pad: 1.08 })); return; }
       items.forEach((p) => {
         const [cx, cy] = polyCentroid(p);
         const gr = g.createRadialGradient(cx - 4, cy - 4, 1, cx, cy, 14); gr.addColorStop(0, '#ff7a5c'); gr.addColorStop(0.7, '#e0261a'); gr.addColorStop(1, '#a5120c');
@@ -80,6 +99,14 @@ export const SUBJECTS = {
     paint(g, items) {
       const R = rng(4);
       fillPoly(g, items[0], '#2f6e2a');
+      if (PHOTOS.parsleySprig) {
+        // 파슬리 잎을 겹겹이 쌓은 한 줌
+        const im = PHOTOS.parsleySprig;
+        g.save(); g.beginPath(); items[0].forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.clip();
+        for (let i = 0; i < 14; i++) { g.save(); g.translate((R() - 0.5) * 110, (R() - 0.5) * 56); g.rotate(R() * TAU); g.drawImage(im, -24, -23, 48, 47); g.restore(); }
+        g.restore();
+        return;
+      }
       for (let i = 0; i < 160; i++) { const x = (R() - 0.5) * 120, y = (R() - 0.5) * 66; g.fillStyle = R() < 0.5 ? '#3e8a34' : '#5aa848'; g.beginPath(); g.ellipse(x, y, 3 + R() * 4, 2 + R() * 3, R() * 3, 0, TAU); g.fill(); }
       g.strokeStyle = 'rgba(180,220,150,0.5)'; g.lineWidth = 0.6;
       for (let i = 0; i < 40; i++) { const x = (R() - 0.5) * 110, y = (R() - 0.5) * 60; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 6, y + 4); g.stroke(); }
@@ -92,6 +119,7 @@ export const SUBJECTS = {
     scale: 1.6, items: () => [rect(0, 0, 210, 46, 0)],
     paint(g, items) {
       const p = items[0];
+      if (photoPoly(g, p, 'baguetteLoaf', { pad: 1.04 })) return;
       const gr = g.createLinearGradient(0, -23, 0, 23); gr.addColorStop(0, '#d89a4a'); gr.addColorStop(0.5, '#c07a30'); gr.addColorStop(1, '#8a5020');
       fillPoly(g, p, gr);
       g.strokeStyle = 'rgba(250,220,160,0.8)'; g.lineWidth = 2;
@@ -104,6 +132,7 @@ export const SUBJECTS = {
   lemon: {
     scale: 2.0, items: () => [ellipse(-40, 0, 32, 24, 30, 0.03, 2), ellipse(40, 0, 32, 24, 30, 0.03, 5)],
     paint(g, items) {
+      if (PHOTOS.lemonHalf) { items.forEach((p) => photoPoly(g, p, 'lemonHalf', { pad: 1.03 })); return; }
       items.forEach((p) => {
         const [cx, cy] = polyCentroid(p);
         fillPoly(g, p, '#f2c81c');
@@ -120,6 +149,17 @@ export const SUBJECTS = {
   asparagus: {
     scale: 1.7, items: () => [-36, -20, -4, 12, 28, 44].map((y) => rect(0, y, 190, 9, 0)),
     paint(g, items) {
+      if (PHOTOS.asparagus) {
+        items.forEach((p) => {
+          photoPoly(g, p, 'asparagus', { pad: 1.0 });
+          // 질긴 밑동은 하얗게 마른 색
+          const [cx, cy] = polyCentroid(p);
+          const gr = g.createLinearGradient(cx - 95, 0, cx - 50, 0); gr.addColorStop(0, 'rgba(225,215,170,0.85)'); gr.addColorStop(1, 'rgba(225,215,170,0)');
+          g.save(); g.beginPath(); p.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.clip(); g.fillStyle = gr; g.fillRect(cx - 96, cy - 6, 50, 12); g.restore();
+        });
+        g.strokeStyle = 'rgba(255,255,255,0.5)'; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(-52, -48); g.lineTo(-52, 56); g.stroke(); g.setLineDash([]);
+        return;
+      }
       items.forEach((p) => {
         const [cx, cy] = polyCentroid(p);
         const gr = g.createLinearGradient(-95, 0, 95, 0); gr.addColorStop(0, '#d8d0a0'); gr.addColorStop(0.22, '#9cc060'); gr.addColorStop(1, '#4f8a28');
@@ -140,6 +180,11 @@ export const SUBJECTS = {
         const [cx, cy] = polyCentroid(p);
         const gr = g.createRadialGradient(cx - 5, cy - 5, 1, cx, cy, 19); gr.addColorStop(0, '#f2e6d2'); gr.addColorStop(1, '#b89070');
         fillPoly(g, p, gr);
+        if (PHOTOS.mushroomSkin) {
+          // 실제 갓 표면 질감 + 둥근 음영
+          g.save(); g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.5; photoPoly(g, p, 'mushroomSkin', { pad: 1.1 }); g.restore();
+          return;
+        }
         g.fillStyle = 'rgba(120,90,60,0.4)'; g.beginPath(); g.arc(cx, cy, 4, 0, TAU); g.fill();
       });
     },
@@ -150,6 +195,7 @@ export const SUBJECTS = {
   shallot: {
     scale: 2.2, items: () => [teardrop(-24, 0, 26, 0.1), teardrop(26, 2, 24, -0.15)],
     paint(g, items) {
+      if (PHOTOS.shallot) { items.forEach((p, i) => photoPoly(g, p, 'shallot', { pad: 1.12, rot: i ? -0.15 : 0.1 })); return; }
       items.forEach((p) => {
         const [cx, cy] = polyCentroid(p);
         fillPoly(g, p, '#d8a0b0');
@@ -165,6 +211,7 @@ export const SUBJECTS = {
     scale: 1.8, items: () => [rect(0, 0, 150, 56, 0)],
     paint(g, items) {
       const p = items[0];
+      if (photoPoly(g, p, 'guanciale', { pad: 1.0 })) return;
       fillPoly(g, p, '#f3e2d4');
       g.fillStyle = '#c8686a';
       for (let k = -1; k <= 1; k++) { g.beginPath(); g.rect(-75, k * 16 - 4, 150, 7); g.fill(); }
@@ -175,9 +222,14 @@ export const SUBJECTS = {
     meter: (ps) => clamp(ps.filter((p) => p.width >= 4 && p.width <= 12 && p.area / p.srcArea < 0.15).length / 12, 0, 1),
   },
   rosemary: {
-    scale: 1.7, items: () => [rect(0, -16, 200, 10, 0.04), rect(0, 20, 200, 10, -0.03)],
+    scale: 1.7, items: () => [rect(0, -16, 200, 22, 0.04), rect(0, 22, 200, 22, -0.03)],
     paint(g, items) {
       const R = rng(8);
+      if (PHOTOS.rosemary) {
+        // 실제 로즈마리 줄기 사진 (다각형보다 잎이 넓게 퍼지므로 클립 없이 그 위치에)
+        items.forEach((p, i) => { const [cx, cy] = polyCentroid(p); g.save(); g.translate(cx, cy); g.rotate(i ? -0.03 : 0.04); g.drawImage(PHOTOS.rosemary, -104, -24, 208, 48); g.restore(); });
+        return;
+      }
       items.forEach((p) => {
         const [cx, cy] = polyCentroid(p);
         g.strokeStyle = '#5b4a2a'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx - 100, cy); g.lineTo(cx + 100, cy); g.stroke();
@@ -199,6 +251,16 @@ function strokePoly(g, p, style, w) { g.beginPath(); p.forEach(([x, y], i) => (i
 
 function paintCabbage(g, items) {
   const shape = items[0];
+  if (PHOTOS.cabbageHalf) {
+    // 실제 양배추 세로 단면 사진 + 겉잎 테두리
+    photoPoly(g, shape, 'cabbageHalf', { pad: 1.12 });
+    const path = new Path2D(); shape.forEach(([x, y], i) => (i ? path.lineTo(x, y) : path.moveTo(x, y))); path.closePath();
+    g.save(); g.clip(path);
+    g.lineWidth = 8; g.strokeStyle = 'rgba(120,170,70,0.85)'; g.stroke(path);
+    g.lineWidth = 3; g.strokeStyle = 'rgba(70,120,40,0.9)'; g.stroke(path);
+    g.restore();
+    return;
+  }
   const CORE = [0, 78];
   const path = new Path2D(); shape.forEach(([x, y], i) => (i ? path.lineTo(x, y) : path.moveTo(x, y))); path.closePath();
   g.save(); g.clip(path);

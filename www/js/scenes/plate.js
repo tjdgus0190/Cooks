@@ -282,11 +282,11 @@ export function drawDish(g, tex, st, { main, sliced, items, sauce, twirl, select
     });
   } else if (cat === 'gambas') {
     const sa = st.saute || { items: {} };
-    g.scale(0.62, 0.62);
+    g.scale(0.85, 0.85);
     drawCazuela(g, { garlic: sa.items.garlic ?? 0.8, shrimpCook: sa.items.shrimp ?? 1, oil: clamp((sa.oil || 100) / 120, 0.3, 1.3), parsley: sa.hasParsley, chili: sa.hasChili });
   } else if (cat === 'lobster') {
     const sa = st.saute || { items: {} };
-    g.rotate(-0.5); g.scale(0.62, 0.62);
+    g.rotate(-0.5); g.scale(0.78, 0.78);
     if (st.dish.key === 'thermidor') drawLobster(g, { cook: 1, split: 1, sauce: true, cheese: st.oven?.brown ?? 0.9 });
     else drawLobster(g, { cook: sa.items.lobster ?? 1, split: 1, glaze: 1.4 * (sa.baste ?? 0.5) });
   }

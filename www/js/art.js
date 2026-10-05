@@ -1,6 +1,7 @@
 // 공용 그래픽: 배경, 도마, 팬, 접시, 칼, 양념통, 가니쉬, 손님
 import { TAU, rng, clamp, lerp } from './geom.js';
 import { drawBaguette, drawLemonWedge, drawParsleyPinch } from './food.js';
+import { PHOTOS, drawPhoto } from './photos.js';
 
 const cache = new Map();
 function cached(key, w, h, dpr, painter) {
@@ -347,6 +348,7 @@ export function drawGarnish(g, key, opts = {}) {
   }
   switch (key) {
     case 'tomato': {
+      if (drawPhoto(g, 'tomatoHalf', 25)) break;
       g.save();
       g.beginPath(); g.arc(0, 0, 11, 0, TAU);
       const sk = g.createRadialGradient(-3, -3, 1, 0, 0, 11);
@@ -372,6 +374,16 @@ export function drawGarnish(g, key, opts = {}) {
       break;
     }
     case 'asparagus': {
+      if (PHOTOS.asparagus) {
+        // 실제 구운 아스파라거스 줄기 사진을 가늘어지는 창 모양에 입힘 (오른쪽이 봉오리)
+        g.save();
+        g.beginPath(); g.moveTo(-31, -2.8); g.quadraticCurveTo(0, -4.6, 26, -3.6); g.quadraticCurveTo(33, -1.5, 33, 0.3);
+        g.quadraticCurveTo(32, 2.6, 26, 3.4); g.quadraticCurveTo(0, 3.6, -31, 3.4); g.quadraticCurveTo(-32.5, 0.3, -31, -2.8);
+        g.clip();
+        g.drawImage(PHOTOS.asparagus, -32, -4.8, 66, 9.4);
+        g.restore();
+        break;
+      }
       g.save();
       g.lineCap = 'round';
       const sg = g.createLinearGradient(0, -3, 0, 3);
@@ -393,6 +405,7 @@ export function drawGarnish(g, key, opts = {}) {
       break;
     }
     case 'rosemary': {
+      if (drawPhoto(g, 'rosemary', 64)) break;
       g.save();
       g.lineCap = 'round';
       g.strokeStyle = '#5b4a2a'; g.lineWidth = 1.6;
@@ -413,6 +426,7 @@ export function drawGarnish(g, key, opts = {}) {
       break;
     }
     case 'garlic': {
+      if (drawPhoto(g, 'garlicRoast', 22)) break;
       g.save();
       g.beginPath();
       g.moveTo(-8, 4); g.quadraticCurveTo(-9, -8, 0, -11); g.quadraticCurveTo(9, -8, 8, 4); g.quadraticCurveTo(0, 9, -8, 4);
@@ -426,6 +440,7 @@ export function drawGarnish(g, key, opts = {}) {
       break;
     }
     case 'mushroom': {
+      if (drawPhoto(g, 'mushroom', 28)) break;
       g.save();
       // 반으로 자른 양송이 단면
       g.beginPath();
