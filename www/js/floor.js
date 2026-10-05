@@ -106,7 +106,7 @@ export function serve(day, c, score, by) {
 function lose(day, c) {
   c.state = 'leaving'; c.st = 0; c.sat = 0;
   day.stats.lost++;
-  day.stats.sats.push({ sat: 0, w: c.vip ? 2 : 1 });
+  day.stats.sats.push({ sat: 0, w: (c.vip ? 2 : 1) * diff.lostWeight });
   if (day.playerJob === c.uid) day.playerJob = null;
   for (const s of day.staff) if (s.job === c.uid) { s.job = null; s.jt = 0; }
   emit(day, 'lost', c);
@@ -167,7 +167,7 @@ export function stepDay(day, dt, biz) {
     else if (c.state === 'ordering' && c.st > ORDER_DELAY) { c.state = 'waiting'; c.st = 0; emit(day, 'order', c); }
     else if (c.state === 'waiting') {
       // 사장이 조리 중인 주문은 손님이 조리 과정을 보며 덜 지루해함
-      c.patience -= dt * (c.assigned === 'player' ? 0.6 : c.assigned ? 0.8 : 1);
+      c.patience -= dt * (c.assigned === 'player' ? diff.playerDrain : c.assigned ? 0.8 * diff.waitDrain : diff.waitDrain);
       if (c.patience <= 0) lose(day, c);
     } else if (c.state === 'eating' && c.st > EAT_TIME) { c.state = 'leaving'; c.st = 0; emit(day, 'paid', c, { pay: c.pay }); }
     else if (c.state === 'leaving' && c.st > 1.5) { c.state = 'gone'; }

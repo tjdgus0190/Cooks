@@ -1,5 +1,6 @@
 // 가게 경영: 만족도·평판·가격 탄력성·확장·요리대회 (순수 함수 — 단위 테스트 대상)
 import { RECIPES, missingFor, PREP } from './recipes.js';
+import { diff } from './difficulty.js';
 export const DISHES = RECIPES;
 
 // 하루 영업은 실시간(약 5분). baseVisitors = 하루 기본 주문 수, seats = 동시 착석, staffSlots = 고용 가능 인원
@@ -73,7 +74,7 @@ export function visitors(biz, price, fair) {
 
 /** 한 주문의 고객 만족도: 요리 점수 − 대기 패널티 ± 가격 효과 */
 export function orderSatisfaction(score, price, fair, waitFrac = 0) {
-  return satisfaction(score - Math.max(0, waitFrac - 0.35) * 25, price, fair);
+  return satisfaction(score - Math.max(0, waitFrac - 0.35) * 25 * diff.waitPenalty, price, fair);
 }
 
 /** 하루 영업 마감 정산. stats: floor.js의 day.stats */
@@ -83,7 +84,8 @@ export function endOfDay(biz, stats, inv = null) {
   // 평판: 주문한 손님(놓친 손님은 만족도 0, VIP는 2배 가중)의 평균 만족도 쪽으로 이동
   const w = stats.sats.reduce((a, x) => a + x.w, 0);
   const avgSat = w ? stats.sats.reduce((a, x) => a + x.sat * x.w, 0) / w : biz.rep;
-  const repDelta = w ? (avgSat - biz.rep) * 0.3 : 0;
+  let repDelta = w ? (avgSat - biz.rep) * 0.3 : 0;
+  if (repDelta < 0) repDelta *= diff.repLoss;
   const next = {
     ...biz,
     day: biz.day + 1,

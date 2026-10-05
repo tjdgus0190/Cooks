@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setDifficulty } from '../www/js/difficulty.js';
+setDifficulty('hard'); // 기존 밸런스(원래 손맛) 기준 테스트
 import * as E from '../www/js/economy.js';
 import * as F from '../www/js/floor.js';
 import { rng } from '../www/js/geom.js';

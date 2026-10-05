@@ -4,6 +4,7 @@ import { drawLobster } from '../food.js';
 import { sfx, haptic, setSizzle } from '../audio.js';
 import { onMotion, feedShake, motion } from '../motion.js';
 import { clamp, TAU, rng } from '../geom.js';
+import { diff } from '../difficulty.js';
 
 const SALT_PER_SHAKE = 0.06; // g
 
@@ -101,6 +102,11 @@ export class BoilScene {
     for (const gr of this.grains) { gr.y += gr.vy * dt; if (gr.y > 0) gr.life = 0; }
     this.grains = this.grains.filter((g) => g.life > 0);
     this.saltMeter.set(this.salt / (this.saltTarget * 2), `${this.salt.toFixed(0)}g`);
+    if (diff.guide && this.active && this.phase === 'cooking' && !this.done) {
+      const ideal = this.pasta ? this.pkgMin - 1 : this.pkgMin, d = this.minutes - ideal;
+      const h = d < -1.5 ? null : d < -0.4 ? '거의 다 됐어요… 곧 건져요!' : d <= 0.6 ? '지금! 건지기 ⏏ 를 누르세요' : '너무 익고 있어요! 바로 건지세요';
+      if (h && h !== this._gh) { this._gh = h; this.game.ui.setHint(h); }
+    }
   }
 
   draw(g) {

@@ -4,6 +4,7 @@ import { membraneRemaining } from '../meat.js';
 import { makeSubject } from '../subjects.js';
 import { sfx, haptic } from '../audio.js';
 import { clamp, TAU } from '../geom.js';
+import { diff } from '../difficulty.js';
 
 const MAX_SLOPE = Math.tan((58 * Math.PI) / 180); // 칼이 들어가는 최대 각도(가로 기준)
 
@@ -73,7 +74,7 @@ export class TrimScene {
     // 방향 평활화
     d.dirx = d.dirx * 0.6 + (Math.abs(sx) / len) * 0.4;
     d.diry = d.diry * 0.6 + (Math.abs(sy) / len) * 0.4;
-    d.ok = !this.subj.angleLimit || d.diry <= d.dirx * MAX_SLOPE;
+    d.ok = !this.subj.angleLimit || !diff.angleLimit || d.diry <= d.dirx * MAX_SLOPE;
     if (d.ok) this.cutSegment(d.x, d.y, p.x, p.y);
     else { this.slipWarn = 1.2; this.curScar = null; }
     d.x = p.x; d.y = p.y;
@@ -100,15 +101,15 @@ export class TrimScene {
           if (dd < best) { best = dd; bm = m; bi = j; }
         }
       }
-      if (bm && best <= bm.width * 0.62) {
+      if (bm && best <= bm.width * diff.cutReach) {
         for (let j = Math.max(0, bi - 1); j <= Math.min(bm.pts.length - 1, bi + 1); j++) {
           if (!bm.cut[j]) { bm.cut[j] = 1; cutAny = true; if (Math.random() < 0.35) this.spawnStrip(bm.pts[j], bm.width); }
         }
         this.curScar = null;
       } else if (this.subj.inside(qx, qy)) {
         if (this.subj.inFat(qx, qy)) { this.fatCut += stepLen; this.curScar = null; continue; }
-        const near = bm && best <= bm.width * 1.25;
-        this.damage += stepLen * (near ? 0.4 : 1);
+        const near = bm && best <= bm.width * Math.max(1.25, diff.cutReach * 1.6);
+        this.damage += stepLen * (near ? 0.4 : 1) * diff.cutDamage;
         hurt = true;
         if (!this.curScar) { this.curScar = []; this.scars.push(this.curScar); }
         this.curScar.push([qx, qy]);

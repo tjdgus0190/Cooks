@@ -1,5 +1,6 @@
 // 스테이크 열전달 시뮬레이션 (1차원 유한차분) + 마이야르(겉면 갈변) 모델
 // 실제 물성치를 쓰되 게임 시간은 TIME_SCALE 배속으로 진행한다.
+import { diff } from './difficulty.js';
 export const TIME_SCALE = 9; // 게임 1초 = 실제 조리 9초
 
 const K = 0.46;          // 열전도율 W/mK
@@ -71,7 +72,8 @@ export function stepSteak(s, dtSim, panTemp, contact = 1) {
     // 마이야르 갈변: 팬 온도 기반 (140℃ 이상에서 활발, 고온일수록 급격)
     const over = Math.max(0, panTemp - 135);
     const rate = 0.0000105 * Math.pow(over, 1.55) * contact; // 1/s
-    s.brown[s.down] += rate * dt;
+    // 노릇한 단계를 넘어서면 난이도에 따라 타는 속도를 늦춤
+    s.brown[s.down] += rate * dt * (s.brown[s.down] > 1.2 ? diff.burn : 1);
   }
   s.sideTime[s.down] += dtSim * contact;
   s.simTime += dtSim;

@@ -6,6 +6,7 @@ import { SHAPE } from '../meat.js';
 import { PREP, PLATE_GARNISH } from '../recipes.js';
 import { sfx, haptic } from '../audio.js';
 import { clamp, TAU, pointInPoly, dist, pathLength } from '../geom.js';
+import { diff } from '../difficulty.js';
 
 export const PLATE_R = 150;
 export const STEAK_SCALE = 0.52;
@@ -55,7 +56,7 @@ export class PlateScene {
       button: '담기 시작',
     }).then(() => { this.active = true; });
     if (this.cat === 'steak') this.segSlice = ui.addSegment([{ key: 'sliced', label: '썰어서' }, { key: 'whole', label: '통째로' }], 'sliced', (k) => { this.sliced = k === 'sliced'; sfx.pop(); });
-    if (this.game.state.quick) ui.addButton('⚡ 자동', () => this.autoPlate(), 'secondary small');
+    if (this.game.state.quick || diff.autoPlate) ui.addButton('⚡ 자동', () => this.autoPlate(), 'secondary small');
     ui.addButton('⟳', () => this.rotateSel(), 'secondary small');
     ui.addButton('서빙 🛎️', () => this.finish());
     ui.hintAtTop(true);

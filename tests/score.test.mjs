@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setDifficulty } from '../www/js/difficulty.js';
+setDifficulty('hard'); // 기존 밸런스(원래 손맛) 기준 테스트
 import { computeScore, plateScore, crustQuality } from '../www/js/score.js';
 const CUSTOMERS = [
   { id: 'a', order: 'medium-rare', saltPref: 1, strict: 1, hints: true },
@@ -85,4 +87,14 @@ test('일부 단계 데이터가 없어도 오류 없이 계산', () => {
   const s = base(); s.trim = null; s.cabbage = null; s.season = null;
   const r = computeScore(s);
   assert.ok(Number.isFinite(r.total));
+});
+
+test('난이도: 같은 실수라도 쉬움이 훨씬 너그럽다', () => {
+  const s = base(); s.cook.core = 46; s.season.salt = 4.2;
+  setDifficulty('hard'); const hard = computeScore(s).total;
+  setDifficulty('normal'); const normal = computeScore(s).total;
+  setDifficulty('easy'); const easy = computeScore(s).total;
+  setDifficulty('hard');
+  assert.ok(easy > normal && normal > hard, `${easy} > ${normal} > ${hard}`);
+  assert.ok(easy >= 70, `쉬움에서 덜 익히고 짜게 해도 70점 이상: ${easy}`);
 });
