@@ -64,15 +64,13 @@ export function drawSlicedSteak(g, tex, cook, { slices = 7 } = {}) {
       g.save();
       g.translate(a, lo);
       g.rotate(Math.PI / 2);
+      g.scale(1, 0.7); // 비스듬히 누운 단면 (원근 축소)
       drawCrossSection(g, hi - lo, T, cook.Tmax, tb, bb, { seed: 10 + i, fatEnd: true });
       g.restore();
       // 슬라이스 사이 그림자
       const sh = g.createLinearGradient(a - T - 6, 0, a - T, 0);
       sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(30,8,0,0.35)');
       g.fillStyle = sh; g.fillRect(a - T - 6, lo + 4, 6, hi - lo - 6);
-      // 단면 위 육즙 반짝임
-      g.fillStyle = 'rgba(255,255,255,0.18)';
-      g.fillRect(a - T * 0.55, lo + 6, 1.4, (hi - lo) * 0.6);
     }
     g.restore();
   }

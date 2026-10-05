@@ -108,7 +108,8 @@ export function realCrust(env, seed = 21) {
 }
 
 /** 단면(슬라이스 잘린 면) 텍스처: 온도 분포 그라디언트 + 결 + 마블링 + 육즙 광택 */
-export function realCrossSection(L, T, colorAt, crustTop, crustBottom, { marbling = 1, seed = 3, px = 4 } = {}) {
+export function realCrossSection(L, T, colorAt, crustTop, crustBottom, { marbling = 1, seed = 3, px = 4, photo = false } = {}) {
+  const fk = photo ? 0.3 : 1; // 사진 결 디테일을 입힐 땐 절차적 결은 약하게
   const w = Math.max(8, Math.round(L * px)), h = Math.max(4, Math.round(T * px));
   const N = makeNoise(seed), N2 = makeNoise(seed + 9);
   const img = shade(w, h, (u, v) => {
@@ -117,7 +118,7 @@ export function realCrossSection(L, T, colorAt, crustTop, crustBottom, { marblin
     // 근섬유 결: 가로로 긴 줄무늬 + 짙은 붉은 결
     const fib = N.n2(X * 0.6, Y * 9) * 0.6 + N.n2(X * 1.8, Y * 22) * 0.3 + N.n2(X * 4, Y * 40) * 0.15;
     const streak = smooth(0.25, 0.5, N2.n2(X * 0.4, Y * 6));
-    r += fib * 16 - streak * 22; g += fib * 6 - streak * 10; b += fib * 6 - streak * 8;
+    r += (fib * 16 - streak * 22) * fk; g += (fib * 6 - streak * 10) * fk; b += (fib * 6 - streak * 8) * fk;
     // 마블링: 결을 따라 길쭉한 흰 지방
     const fat = smooth(0.34 - marbling * 0.03, 0.42, N2.fbm(X * 0.9, Y * 4.5, 3)) * 0.85;
     r = mix(r, 236, fat); g = mix(g, 214, fat); b = mix(b, 200, fat);
@@ -134,4 +135,93 @@ export function realCrossSection(L, T, colorAt, crustTop, crustBottom, { marblin
     return { h: 0.5 + fib * 0.04 + crust * N.fbm(X * 4, Y * 4, 2) * 0.15, r, g, b, spec: crust ? 0.2 : 0.38, gloss: crust ? 16 : 60, sss: crust ? 0 : 0.8 };
   }, { bump: 6, ambient: 0.66 });
   return toCanvas(img);
+}
+
+// ── 실사 사진 기반 텍스처 ────────────────────────────────
+function photoPixels(img, w, h, env) {
+  // 사진을 고기 윤곽의 경계 상자에 맞춰 늘려 그린 픽셀
+  const { bx0, by0, bw, sbox } = env;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const sx = w / bw;
+  g.setTransform(sx, 0, 0, sx, -bx0 * sx, -by0 * sx);
+  const [x0, y0, x1, y1] = sbox || [bx0, by0, bx0 + bw, by0 + env.bh];
+  g.drawImage(img, x0, y0, x1 - x0, y1 - y0);
+  return g.getImageData(0, 0, w, h);
+}
+
+/** 생 스테이크 윗면 — 실제 립아이 사진 + 지방층(윗변) + 가장자리 음영 */
+export function photoRaw(env, img, marbling = 1, seed = 7) {
+  const { shapePath, fatLine, fatW, bx0, by0, bw, bh, scale } = env;
+  const w = Math.min(MAX_W, Math.round(bw * scale)), h = Math.round(w * bh / bw);
+  const M = maskAndEdge(shapePath, fatLine, fatW, bx0, by0, bw, bh, w, h);
+  const P = photoPixels(img, w, h, env), d = P.data;
+  const N = makeNoise(seed);
+  const extra = clamp((marbling - 1) * 0.45, 0, 0.9); // 와규: 잔 마블링 추가
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const o = (y * w + x) * 4;
+    if (M[o] < 128) { d[o + 3] = 0; continue; }
+    const edge = M[o + 1] / 255, fatNear = M[o + 2] / 255;
+    const X = (x / w) * bw / 40, Y = (y / h) * bh / 40;
+    let r = d[o], g = d[o + 1], b = d[o + 2];
+    if (extra > 0) {
+      const f = smooth(0.36, 0.46, N.fbm(X * 12, Y * 12, 3)) * extra * smooth(20, 60, r - g);
+      r = mix(r, 240, f); g = mix(g, 222, f); b = mix(b, 208, f);
+    }
+    const cap = smooth(0.62, 0.86, fatNear), capEdge = smooth(0.45, 0.62, fatNear) * (1 - cap);
+    r = mix(r, 226, capEdge * 0.5); g = mix(g, 160, capEdge * 0.5); b = mix(b, 146, capEdge * 0.5);
+    const cn = N.fbm(X * 4, Y * 4, 3), fl = N.fbm(X * 16, Y * 16, 2);
+    r = mix(r, 236 + cn * 10 + fl * 8, cap); g = mix(g, 220 + cn * 10 + fl * 8, cap); b = mix(b, 192 + cn * 12 + fl * 8, cap);
+    const ed = 1 - edge * 0.32 * (1 - cap);
+    d[o] = r * ed; d[o + 1] = g * ed; d[o + 2] = b * ed; d[o + 3] = 255;
+  }
+  return toCanvas(P);
+}
+
+/** 시어링 크러스트 — 무쇠팬에 구운 실제 스테이크 표면 질감 + 노릇한 지방층 */
+export function photoCrust(env, img, seed = 21) {
+  const { shapePath, fatLine, fatW, bx0, by0, bw, bh, scale } = env;
+  const w = Math.min(MAX_W, Math.round(bw * scale)), h = Math.round(w * bh / bw);
+  const M = maskAndEdge(shapePath, fatLine, fatW, bx0, by0, bw, bh, w, h);
+  const d = photoPixels(img, w, h, { ...env, sbox: null }).data;
+  const N = makeNoise(seed);
+  // 사진 밝기를 높이로 삼아 요철에 다시 빛을 줌 (볼록한 캐러멜 부분이 반짝임)
+  const Lm = boxBlur(lumOf(d, w, h), w, h, 2);
+  const img2 = shade(w, h, (u, v, x, y) => {
+    const i = y * w + x, o = i * 4;
+    if (M[o] < 128) return { h: 0.3, r: 0, g: 0, b: 0, a: 0 };
+    const edge = M[o + 1] / 255, cap = smooth(0.62, 0.86, M[o + 2] / 255);
+    const X = u * bw / 40, Y = v * bh / 40;
+    let r = d[o], g = d[o + 1], b = d[o + 2];
+    // 큰 얼룩(팬에 닿은 정도 차이)과 볼록한 윗면 하이라이트로 반복감·평면감 제거
+    const big = N.fbm(X * 0.9 + 4, Y * 0.9, 3), dome = 1 - edge;
+    const k = 0.9 + big * 0.3 - smooth(0.15, 0.4, N.fbm(X * 2.4, Y * 2.4 + 9, 3)) * 0.16;
+    r *= k; g *= k * (0.98 + big * 0.06); b *= k;
+    // 가장자리는 더 바삭하고 진하게
+    r *= 1 - edge * 0.25; g *= 1 - edge * 0.3; b *= 1 - edge * 0.3;
+    const cn = N.fbm(X * 6, Y * 6, 3), lum = Lm[i];
+    r = mix(r, (226 + cn * 18) * (0.8 + lum * 0.4), cap); g = mix(g, (160 + cn * 24) * (0.8 + lum * 0.4), cap); b = mix(b, (80 + cn * 18) * (0.8 + lum * 0.4), cap);
+    return { h: lum * 0.35 + dome * 0.25 + big * 0.05, r: r * 1.12, g: g * 1.12, b: b * 1.12, spec: 0.14 + lum * 0.35, gloss: 30 + lum * 40, sss: 0 };
+  }, { bump: 9, ambient: 0.72, specColor: [255, 228, 190] });
+  return toCanvas(img2);
+}
+
+function lumOf(d, w, h) {
+  const L = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) L[i] = (d[i * 4] * 0.4 + d[i * 4 + 1] * 0.45 + d[i * 4 + 2] * 0.15) / 255;
+  return L;
+}
+function boxBlur(src, w, h, r) {
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let s = 0, c = 0;
+    for (let k = -r; k <= r; k++) { const xx = x + k; if (xx >= 0 && xx < w) { s += src[y * w + xx]; c++; } }
+    tmp[y * w + x] = s / c;
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let s = 0, c = 0;
+    for (let k = -r; k <= r; k++) { const yy = y + k; if (yy >= 0 && yy < h) { s += tmp[yy * w + x]; c++; } }
+    out[y * w + x] = s / c;
+  }
+  return out;
 }

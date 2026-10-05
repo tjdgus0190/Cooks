@@ -8,6 +8,7 @@ await page.goto('http://localhost:8512/icon.html'); await page.waitForFunction((
 const url = await page.evaluate(async () => {
   const { drawCrossSection } = await import('./js/meat.js');
   const { idealCook } = await import('./js/dish.js');
+  await (await import('./js/photos.js')).loadPhotos();
   const c = document.createElement('canvas'); c.width = 1000; c.height = 260; const g = c.getContext('2d');
   g.fillStyle = '#eee'; g.fillRect(0, 0, 1000, 260);
   const ck = idealCook();

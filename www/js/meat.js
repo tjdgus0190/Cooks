@@ -1,7 +1,8 @@
 // 스테이크 그래픽: 형태, 마블링 텍스처, 근막, 크러스트, 단면
 import { TAU, rng, clamp, resample, pointInPoly, lerp, smoothstep as smooth } from './geom.js';
 import { meatColorAt, crustColor } from './sim.js';
-import { realRaw, realCrust, realCrossSection } from './steakreal.js';
+import { realRaw, realCrust, realCrossSection, photoRaw, photoCrust } from './steakreal.js';
+import { PHOTOS } from './photos.js';
 
 // 단위: mm. 채끝(스트립로인) 형태 — 위쪽 가장자리에 지방층
 export const STEAK = { w: 250, h: 170, thick: 28 };
@@ -106,14 +107,21 @@ function makeCanvas(w, h) {
 }
 
 const PAD = 20;
+const SHAPE_BOX = (() => {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of SHAPE) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  return [x0, y0, x1, y1];
+})();
 const BX0 = -135 - PAD, BY0 = -95 - PAD, BW = 270 + PAD * 2, BH = 200 + PAD * 2;
 
 /** 고해상도 텍스처 세트 생성 (scale: mm → px) */
 export function buildSteakTextures(scale, marbling = 1) {
   const tex = { scale, marbling, real: true };
   const env = { shapePath: SHAPE_PATH, fatLine: FAT_LINE, fatW: FAT_W, bx0: BX0, by0: BY0, bw: BW, bh: BH, scale };
-  tex.raw = realRaw(env, marbling);
-  tex.crust = realCrust(env);
+  // 실사 사진이 있으면 사진 기반, 없으면 절차적 실사풍 텍스처
+  tex.photo = !!(PHOTOS.steakRaw && PHOTOS.steakCrust);
+  tex.raw = PHOTOS.steakRaw ? photoRaw({ ...env, sbox: SHAPE_BOX }, PHOTOS.steakRaw, marbling) : realRaw(env, marbling);
+  tex.crust = PHOTOS.steakCrust ? photoCrust(env, PHOTOS.steakCrust) : realCrust(env);
   tex.gloss = drawGlossTexture(scale);
   tex.shadow = drawShadowTexture(scale);
   return tex;
@@ -384,10 +392,10 @@ function drawSide(g, side) {
     let rgb = meatColorAt(Tmax[idx] ?? 20);
     // 측면은 겉면이 공기에 닿아 더 진하게 익는다
     rgb = rgb.map((v) => v * 0.78);
-    if (k === layers) {
-      const cc = crustColor(brownDown);
-      rgb = rgb.map((v, i) => lerp(v, cc.rgb[i], cc.a));
-    }
+    // 측면도 팬·기름에 닿아 갈색으로 지져진다 (아래쪽일수록 진함)
+    const cc = crustColor(brownDown);
+    const sear = k === layers ? cc.a : cc.a * 0.75 * (0.55 + 0.45 * frac);
+    rgb = rgb.map((v, i) => lerp(v, cc.rgb[i] * (0.85 + 0.15 * frac), sear));
     g.save();
     g.translate(0, frac * thickPx);
     g.fillStyle = `rgb(${rgb.map((v) => v | 0).join(',')})`;
@@ -502,13 +510,38 @@ export function drawCrossSection(g, L, T, Tmax, brownTop, brownBottom, opts = {}
     tx = realCrossSection(L, T, colorAt,
       { rgb: ct.rgb, th: 0.8 + clamp(brownTop, 0, 2) * 1.4 },
       { rgb: cb.rgb, th: 0.8 + clamp(brownBottom, 0, 2) * 1.4 },
-      { seed: opts.seed || 3, px: 5 });
+      { seed: opts.seed || 3, px: 5, photo: !!PHOTOS.steakGrain });
     if (xsCache.size > 40) xsCache.clear();
     xsCache.set(key, tx);
   }
   g.save();
   g.clip(path);
   g.drawImage(tx, 0, 0, L, T);
+  // 실제 단면 사진의 결·육즙 디테일 (색은 시뮬레이션 그대로, 명암만 입힘)
+  if (PHOTOS.steakGrain) {
+    const gi = PHOTOS.steakGrain, sw = Math.min(gi.width, gi.height * (L / T) * 1.4);
+    const sx = ((opts.seed || 0) * 97) % Math.max(1, gi.width - sw);
+    g.globalCompositeOperation = 'soft-light'; g.globalAlpha = 0.9;
+    g.drawImage(gi, sx, 0, sw, gi.height, 0, 0, L, T);
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  }
+  // 겉면 크러스트 띠: 실제 크러스트 사진 질감
+  if (PHOTOS.steakCrust) {
+    const ci = PHOTOS.steakCrust;
+    const band = (b, y0, th, down) => {
+      if (b < 0.08) return;
+      g.save();
+      g.beginPath(); g.rect(0, down ? y0 : y0 - th, L, th); g.clip();
+      g.globalAlpha = clamp(b * 0.9, 0, 0.95);
+      const cs = ((opts.seed || 0) * 53) % (ci.width - 200);
+      g.drawImage(ci, cs, down ? 0 : 200, Math.min(ci.width - cs, L * 3), Math.max(12, th * 3), 0, down ? y0 : y0 - th, L, th);
+      g.globalCompositeOperation = 'multiply'; g.globalAlpha = 0.55; g.fillStyle = 'rgb(140,84,60)'; g.fillRect(0, down ? y0 : y0 - th, L, th);
+      if (b > 1.3) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = clamp((b - 1.3) * 0.9, 0, 0.8); g.fillStyle = 'rgb(70,40,25)'; g.fillRect(0, down ? y0 : y0 - th, L, th); }
+      g.restore();
+    };
+    band(brownTop, 0, 1.1 + clamp(brownTop, 0, 2) * 1.7, true);
+    band(brownBottom, T, 1.1 + clamp(brownBottom, 0, 2) * 1.7, false);
+  }
   if (opts.fatEnd) {
     const fg = g.createLinearGradient(0, 0, 13, 0);
     fg.addColorStop(0, '#d9a868'); fg.addColorStop(0.25, '#f2dcb8'); fg.addColorStop(1, 'rgba(242,220,184,0)');

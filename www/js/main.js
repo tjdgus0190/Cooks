@@ -2,6 +2,7 @@
 import { initAudio, sfx, setSizzle, setSoundOn } from './audio.js';
 import { startMotion, requestMotionPermission, decayMotion, motion } from './motion.js';
 import { buildSteakTextures } from './meat.js';
+import { loadPhotos } from './photos.js';
 import { loadSave, saveBest, writeSave } from './data.js';
 import { dishByKey } from './economy.js';
 import * as F from './floor.js';
@@ -268,6 +269,7 @@ game.showSettings = function (back) {
       <button class="btn secondary toggle ${on(prefs.haptics)}" data-act="haptics">📳 진동 <b>${prefs.haptics ? '켜짐' : '꺼짐'}</b></button>
       <button class="btn secondary" data-act="help">❓ 도움말 다시 보기</button>
       <button class="btn secondary" data-act="prologue">📖 프롤로그 다시 보기</button>
+      <button class="btn secondary" data-act="credits">📷 음식 사진 출처</button>
       <button class="btn secondary" data-act="reset">🗑️ 데이터 초기화</button>
     </div>
     <p class="ver">쿠킹 시뮬레이터 v2.0 · Made with ❤️ & 🥩</p>
@@ -275,6 +277,7 @@ game.showSettings = function (back) {
     sound: () => { game.setPref('sound', !prefs.sound); game.showSettings(back); },
     haptics: () => { game.setPref('haptics', !prefs.haptics); game.showSettings(back); },
     help: () => game.showHelpCard(() => game.showSettings(back)),
+    credits: () => game.showCredits(() => game.showSettings(back)),
     prologue: () => { game.paused = false; game._pauseCard = false; game.day = null; game.toStory('prologue', () => game.toTitle()); },
     reset: () => ui.showCard(`<div class="icon">⚠️</div><h2>정말 초기화할까요?</h2><p>가게·자금·직원·메달·튜토리얼 기록이 모두 사라져요.</p>
       <div class="row"><button class="btn secondary" data-act="no">취소</button><button class="btn" data-act="yes">초기화</button></div>`, {
@@ -283,6 +286,18 @@ game.showSettings = function (back) {
     }),
     back: () => (back ? back() : ui.hideOverlay()),
   });
+};
+
+/** 음식 사진 출처 (CC 라이선스 표기) */
+game.showCredits = async function (back) {
+  let list = [];
+  try { list = await (await fetch('assets/CREDITS.json')).json(); } catch (e) { /* 오프라인 등 */ }
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  ui.showCard(`
+    <div class="icon">📷</div><h2>음식 사진 출처</h2>
+    <p>음식 그래픽은 아래 사진을 잘라내고 색을 보정해 만들었어요. 원작자분들께 감사드립니다.</p>
+    <ul class="credits">${list.map((c) => `<li><b>${esc(c.use)}</b> — “${esc(c.title)}” · ${esc(c.author)} · ${esc(c.license)}<br><small>${esc(c.source)}</small></li>`).join('') || '<li>목록을 불러오지 못했어요</li>'}</ul>
+    <div class="row"><button class="btn" data-act="back">닫기</button></div>`, { back: () => (back ? back() : ui.hideOverlay()) });
 };
 
 /** 짧은 도움말 카드 (일시정지/설정에서) */
@@ -424,5 +439,7 @@ function onTimeout() {
 document.addEventListener('visibilitychange', () => { if (document.hidden) setSizzle(0); });
 
 resize();
+// 실사 음식 사진을 불러오면 텍스처를 다시 만든다 (실패 시 절차적 텍스처 유지)
+loadPhotos().then(() => { texCache.clear(); game.useTex(game.tex?.marbling ?? 1); });
 game.setScene(SplashScene);
 requestAnimationFrame(frame);

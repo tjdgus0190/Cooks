@@ -11,8 +11,9 @@ const t0 = Date.now();
 const url = await page.evaluate(async () => {
   const { buildSteakTextures, drawSteakTop } = await import('./js/meat.js');
   const { drawSlicedSteak, idealCook } = await import('./js/dish.js');
+  await (await import('./js/photos.js')).loadPhotos();
   const t = performance.now();
-  const tex = buildSteakTextures(2.6, 1.6);
+  const tex = buildSteakTextures(2.6, 1);
   const ms = performance.now() - t;
   const c = document.createElement('canvas'); c.width = 1200; c.height = 1000;
   const g = c.getContext('2d');
