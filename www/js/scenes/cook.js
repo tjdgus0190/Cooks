@@ -3,10 +3,15 @@ import { drawCounter, drawStoveAndPan, drawSteam } from '../art.js';
 import { drawSteakTop, drawSteakShadow, SHAPE_PATH, STEAK_BOUNDS } from '../meat.js';
 import { sfx, haptic, setSizzle } from '../audio.js';
 import { onMotion, emitSwipeFlick, motion } from '../motion.js';
-import { createSteak, stepSteak, flipSteak, stepPan, coreTemp, cloneSteak, restSteak, coreMax, donenessOf, HEAT_LEVELS, TIME_SCALE, crustColor } from '../sim.js';
+import { createSteak, stepSteak, flipSteak, stepPan, coreTemp, cloneSteak, restSteak, coreMax, donenessOf, HEAT_LEVELS, TIME_SCALE, crustColor, TARGETS } from '../sim.js';
+import { diff } from '../difficulty.js';
 import { clamp, TAU, lerp } from '../geom.js';
 
-export const FLIP = { min: 13, perfectLo: 16, perfectHi: 22, max: 26 };
+// 뒤집기 세기 허용 범위 (난이도에 따라 달라짐)
+export const FLIP = {
+  get min() { return diff.flip.min; }, get perfectLo() { return diff.flip.perfectLo; },
+  get perfectHi() { return diff.flip.perfectHi; }, get max() { return diff.flip.max; },
+};
 const HEATS = [{ key: 'low', label: '약불' }, { key: 'mid', label: '중불' }, { key: 'high', label: '강불' }];
 
 export class CookScene {
@@ -22,7 +27,7 @@ export class CookScene {
     this.folded = false;
     this.foldTime = 0;
     this.flips = 0; this.goodFlips = 0; this.perfectFlips = 0; this.folds = 0;
-    this.probes = 3; this.probeShow = 0; this.probeVal = 0;
+    this.probes = diff.guide ? 99 : 3; this.probeShow = 0; this.probeVal = 0;
     this.steam = []; this.splat = []; this.smoke = [];
     this.gauge = null;
     this.done = false;
@@ -44,14 +49,20 @@ export class CookScene {
         '팬을 튕기듯 휴대폰을 <b>위로 휙!</b> 올리면 고기가 뒤집혀요. (화면을 위로 빠르게 쓸어올려도 돼요)',
         '<b>너무 약하거나 너무 세면</b> 고기가 접혀요. 접히면 고기를 탭해서 펴세요.',
         '겉은 <b>노릇한 갈색</b>이 될 때까지, 속은 주문한 굽기까지! 옆면 색이 익어 올라오는 걸 보세요.',
-        `🌡️ 온도계는 ${this.probes}번 쓸 수 있어요. 꺼낸 뒤에도 <b>잔열로 5~8℃</b> 더 익어요.`,
+        diff.guide ? '🌡️ 아래 <b>속 온도</b> 게이지를 보고, 목표 구간에 들어오면 <b>꺼내기</b>! (꺼낸 뒤에도 잔열로 5~8℃ 더 익어요)' : `🌡️ 온도계는 ${this.probes}번 쓸 수 있어요. 꺼낸 뒤에도 <b>잔열로 5~8℃</b> 더 익어요.`,
       ],
     }).then(() => { this.active = true; });
     this.heatSeg = ui.addSegment(HEATS, this.heat, (k) => { this.heat = k; sfx.pop(); });
-    this.probeBtn = ui.addButton(`🌡️ ${this.probes}`, () => this.probe(), 'secondary small');
+    this.probeBtn = ui.addButton(diff.guide ? '🌡️' : `🌡️ ${this.probes}`, () => this.probe(), 'secondary small');
     ui.addButton('꺼내기 🍽️', () => this.finish());
     this.panMeter = ui.addMeter('팬 온도');
     if (hints) { this.downMeter = ui.addMeter('아랫면 색', { zone: [0.85 / 2, 1.35 / 2] }); }
+    if (diff.guide) {
+      // 속 온도 게이지: 잔열을 감안해 목표보다 약 6℃ 낮을 때 꺼내는 구간
+      const tgt = TARGETS[this.game.state.customer.order] || TARGETS['medium-rare'];
+      this.pullAt = tgt.ideal - 6;
+      this.coreMeter = ui.addMeter(`속 온도 (${tgt.name})`, { zone: [(this.pullAt - 2 - 20) / 60, (this.pullAt + 2 - 20) / 60] });
+    }
     this.off = onMotion((ev) => { if (ev.type === 'flick') this.flick(ev.power, ev.source); });
   }
 
@@ -108,7 +119,7 @@ export class CookScene {
     this.probes--;
     this.probeVal = coreTemp(this.sim);
     this.probeShow = 2.6;
-    this.probeBtn.innerHTML = `🌡️ ${this.probes}`;
+    if (!diff.guide) this.probeBtn.innerHTML = `🌡️ ${this.probes}`;
     if (this.probes === 0) this.probeBtn.disabled = true;
     sfx.pop();
   }
@@ -226,12 +237,14 @@ export class CookScene {
     // HUD
     this.panMeter.set(this.pan.temp / 280, `${Math.round(this.pan.temp)}℃`);
     const downB = s.brown[s.down];
+    if (this.coreMeter) { const ct = coreTemp(s); this.coreMeter.set(clamp((ct - 20) / 60, 0, 1), `${Math.round(ct)}℃`); }
     if (this.downMeter) this.downMeter.set(downB / 2, downB < 0.3 ? '날것' : downB < 0.85 ? '연갈색' : downB < 1.35 ? '노릇노릇' : downB < 1.7 ? '진함' : '탐!');
     if (this.active && !this.done) {
       const hints = this.game.state.customer.hints;
       let hint = '';
       if (this.folded) hint = '고기가 접혔어요! 고기를 탭해서 펴세요';
       else if (burning) hint = '타는 냄새가 나요! 뒤집거나 불을 줄이세요';
+      else if (this.pullAt && coreTemp(s) >= this.pullAt - 2) hint = coreTemp(s) > this.pullAt + 3 ? '너무 익고 있어요! 지금 바로 꺼내기 🍽️' : '속 온도 딱 좋아요 — 꺼내기 🍽️ 를 누르세요!';
       else if (hints && downB > 0.9 && downB < 1.4) hint = '아랫면이 노릇해졌어요 — 휴대폰을 위로 휙! 뒤집기';
       else if (hints) hint = '옆면이 익어 올라오는 색을 보며 뒤집어요';
       else hint = '휴대폰을 위로 휙! 올려 뒤집기';

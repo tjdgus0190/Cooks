@@ -5,7 +5,8 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageEnhance
 
 SRC = sys.argv[1] if len(sys.argv) > 1 else '/tmp/claude-0/assets'
-OUT = os.path.join(os.path.dirname(__file__), '../../www/assets/food')
+# 가공 원본(사진풍) → stylize.py가 그림풍으로 변환해 www/assets/food에 저장
+OUT = os.environ.get('FOOD_RAW', os.path.join(SRC, 'food-raw'))
 os.makedirs(OUT, exist_ok=True)
 
 def quilt(src, W, H, P=150, seed=1):

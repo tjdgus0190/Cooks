@@ -3,6 +3,7 @@ import { initAudio, sfx, setSizzle, setSoundOn } from './audio.js';
 import { startMotion, requestMotionPermission, decayMotion, motion } from './motion.js';
 import { buildSteakTextures } from './meat.js';
 import { loadPhotos } from './photos.js';
+import { diff, setDifficulty, DIFFS, DIFF_ORDER } from './difficulty.js';
 import { loadSave, saveBest, writeSave } from './data.js';
 import { dishByKey } from './economy.js';
 import * as F from './floor.js';
@@ -49,6 +50,7 @@ const game = {
 };
 window.__game = game; // QA 자동화용
 Object.assign(prefs, game.save.prefs);
+setDifficulty(prefs.difficulty || 'easy');
 setSoundOn(prefs.sound);
 
 function resize() {
@@ -118,6 +120,7 @@ game.toHall = function () {
 /** 주문 시작: mode = 'order'(영업 손님) | 'contest'(대회) */
 game.startOrder = function ({ mode = 'order', dishKey = 'strip', customer, contest = null }) {
   const c = customer;
+  if (diff.guide) c.hints = true; // 쉬움·보통: 계량 목표 구간·굽기 안내 표시
   const dish = recipeByKey(dishKey);
   game.useTex(dish.marbling || 1);
   const quick = mode === 'order';
@@ -128,7 +131,7 @@ game.startOrder = function ({ mode = 'order', dishKey = 'strip', customer, conte
     mode, dish, contest, quick,
     customer: c,
     stages, steps: stages.map((x) => x.type),
-    timeLeft: quick ? c.patience : c.time, timeTotal: quick ? c.patienceMax : c.time,
+    timeLeft: quick ? c.patience : c.time * diff.patience, timeTotal: quick ? c.patienceMax : c.time * diff.patience,
     stageIdx: 0,
     trim: null, cabbage: quick ? { fineness: 0.7, pieces: 30, prepped: true } : null,
     season: null, cook: null, plate: null,
@@ -267,6 +270,7 @@ game.showSettings = function (back) {
     <div class="col">
       <button class="btn secondary toggle ${on(prefs.sound)}" data-act="sound">🔊 사운드 <b>${prefs.sound ? '켜짐' : '꺼짐'}</b></button>
       <button class="btn secondary toggle ${on(prefs.haptics)}" data-act="haptics">📳 진동 <b>${prefs.haptics ? '켜짐' : '꺼짐'}</b></button>
+      <button class="btn secondary" data-act="difficulty">${diff.icon} 난이도 <b>${diff.name}</b></button>
       <button class="btn secondary" data-act="help">❓ 도움말 다시 보기</button>
       <button class="btn secondary" data-act="prologue">📖 프롤로그 다시 보기</button>
       <button class="btn secondary" data-act="credits">📷 음식 사진 출처</button>
@@ -276,6 +280,12 @@ game.showSettings = function (back) {
     <div class="row"><button class="btn" data-act="back">닫기</button></div>`, {
     sound: () => { game.setPref('sound', !prefs.sound); game.showSettings(back); },
     haptics: () => { game.setPref('haptics', !prefs.haptics); game.showSettings(back); },
+    difficulty: () => {
+      const next = DIFF_ORDER[(DIFF_ORDER.indexOf(diff.key) + 1) % DIFF_ORDER.length];
+      setDifficulty(next); game.setPref('difficulty', next);
+      ui.toast(`난이도: ${DIFFS[next].name}`, { sub: { easy: '손님이 오래 기다리고, 채점이 너그러워요', normal: '조금 더 정확하게!', hard: '원래 손맛 그대로 — 실수 용서 없음' }[next] });
+      game.showSettings(back);
+    },
     help: () => game.showHelpCard(() => game.showSettings(back)),
     credits: () => game.showCredits(() => game.showSettings(back)),
     prologue: () => { game.paused = false; game._pauseCard = false; game.day = null; game.toStory('prologue', () => game.toTitle()); },

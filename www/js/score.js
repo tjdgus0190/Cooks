@@ -1,5 +1,6 @@
 // 평가: 요리 과정의 양·타이밍을 점수로 환산하고 손님 코멘트를 만든다
 import { TARGETS, donenessOf } from './sim.js';
+import { diff } from './difficulty.js';
 
 export const SEASON_TARGET = { salt: 2.4, pepper: 0.8, oil: 10 };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -261,7 +262,7 @@ const STEP_INFO = {
  */
 export function computeScore(state) {
   const c = state.customer;
-  const strict = c.strict || 1;
+  const strict = (c.strict || 1) * diff.strict;
   const steps = state.steps || ['trim', 'cabbage', 'season', 'sear', 'plate'];
   const ctx = { c, strict, dish: state.dish, plate: state.plate, slawOnPlate: !!state.plate?.items?.some((i) => i.key === 'slaw') };
   const parts = [];
@@ -277,7 +278,8 @@ export function computeScore(state) {
     raw.push({ type, info, r });
     if (r.doneness) doneness = r.doneness;
     if (r.saltRatio != null) saltRatio = r.saltRatio;
-    for (const i of r.issues) { issues.push(i); if (i.cap) cap = Math.min(cap, i.cap); }
+    r.score = r.score + (1 - clamp(r.score, 0, 1)) * diff.lenient * (r.score > 0 ? 1 : 0);
+    for (const i of r.issues) { issues.push(i); if (i.cap) cap = Math.min(cap, i.cap + diff.capBonus); }
     praises.push(...r.praises);
   }
   // 배점 정규화: 단계 배점 합 + 시간 5점 = 100

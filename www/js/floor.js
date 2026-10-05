@@ -2,6 +2,7 @@
 // 화면과 분리된 순수 로직 — 요리 미니게임 중에도 계속 돌아간다 (단위 테스트 대상)
 import * as E from './economy.js';
 import { missingFor, consume } from './recipes.js';
+import { diff } from './difficulty.js';
 
 export const DAY_LENGTH = 300;      // 영업 시간(초) — 이후 새 손님 없음
 export const ORDER_DELAY = 4;       // 착석 후 주문까지
@@ -17,7 +18,7 @@ export function createDay(biz, { rand = Math.random, length = DAY_LENGTH, slaw =
     const price = biz.prices[d.key] ?? d.base;
     return { d, price, fair: E.fairPrice(biz, d), w: E.visitors(biz, price, E.fairPrice(biz, d)) };
   });
-  const total = Math.max(1, Math.round(weights.reduce((a, x) => a + x.w, 0) / weights.length));
+  const total = Math.max(1, Math.round(weights.reduce((a, x) => a + x.w, 0) / weights.length * diff.arrivals));
   const sumW = weights.reduce((a, x) => a + x.w, 0);
   // 첫 손님은 바로, 이후 점심·저녁 피크가 생기도록 분포
   const arrivals = Array.from({ length: total }, (_, i) => {
@@ -56,7 +57,7 @@ function spawn(day, biz) {
   const x = pickDish(day);
   const vip = day.rand() < day.vipRate;
   const guest = E.makeCustomer(biz, day.rand, { dish: x.d });
-  const patience = (vip ? 210 : 150 + day.rand() * 30) - (day.level - 1) * 8;
+  const patience = ((vip ? 210 : 150 + day.rand() * 30) - (day.level - 1) * 8) * diff.patience;
   return {
     ...guest,
     uid: uid++,
